@@ -79,7 +79,7 @@ npm start                       # تشغيل اللعبة
 npm run dist                    # (على ويندوز) بناء ملف التنصيب dist/IBRA-TANK-Setup-*.exe
 ./scripts/build-installer.sh    # (على لينكس/ماك) بناء ملف التنصيب بدون Wine
 ```
-أو ارفع tag مثل `v1.0.1` وGitHub Actions يبني ملف التنصيب وينشره في Releases تلقائياً.
+أو غيّر رقم `version` في `package.json` وارفع التعديل — GitHub Actions يبني ملف التنصيب على ويندوز وينشره في Releases تلقائياً.
 
 ### هيكل المشروع
 ```
