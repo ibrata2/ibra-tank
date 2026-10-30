@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IBRA TANK — درع الصحراء</title>
+<style>
+:root{--gold:#d4af37;--gold2:#f3d77a;--bg:#0b0b0c;--panel:rgba(12,12,14,.72);--line:rgba(212,175,55,.35);--txt:#f2ead7;--red:#e5483b;--green:#5dd879;--blue:#5ab4ff}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;color:var(--txt);font-family:"Segoe UI",Tahoma,"Noto Kufi Arabic","Noto Sans Arabic",Arial,sans-serif;user-select:none}
+#game{position:fixed;inset:0;width:100%;height:100%;display:block}
+body.playing #game{cursor:crosshair}
+.layer{position:fixed;inset:0;pointer-events:none}
+#hud{opacity:0;transition:opacity .4s}
+#hud.show{opacity:1}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;backdrop-filter:blur(6px);box-shadow:0 8px 30px rgba(0,0,0,.35)}
+/* top right status */
+#status{position:absolute;top:14px;right:14px;width:310px;padding:12px 14px}
+#status .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+#lvl{font-size:20px;font-weight:800;color:var(--gold2)}
+#env{font-size:13px;opacity:.85}
+.bar{position:relative;height:16px;background:rgba(255,255,255,.08);border-radius:8px;overflow:hidden;margin-top:6px;border:1px solid rgba(255,255,255,.08)}
+.bar .fill{position:absolute;inset:0 0 0 auto;height:100%;transition:width .15s}
+#hp-fill{background:linear-gradient(90deg,#ff6a3d,#e5483b 60%,#b71c1c)}
+#xp-fill{background:linear-gradient(90deg,#fff1a8,var(--gold))}
+.bar span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;text-shadow:0 1px 2px #000}
+#xp-bar{height:12px}
+#status .meta{display:flex;gap:10px;font-size:12px;margin-top:8px;opacity:.9;flex-wrap:wrap}
+#status .meta b{color:var(--gold2)}
+/* objective top-left */
+#objp{position:absolute;top:14px;left:14px;width:360px;padding:12px 14px}
+#objp h4{font-size:12px;color:var(--gold);letter-spacing:.5px;display:flex;justify-content:space-between}
+#obj{font-size:16px;font-weight:700;margin-top:6px;line-height:1.6}
+#obj b{color:var(--gold2);margin-inline-start:6px}
+#obj i{color:#ff9a7a;font-style:normal;font-size:13px}
+#obj .dist{display:inline-block;margin-inline-start:8px;font-size:12px;padding:1px 8px;border-radius:20px;background:rgba(212,175,55,.18);color:var(--gold2)}
+#passengers{font-size:13px;color:var(--green);margin-top:4px}
+/* track */
+#track{direction:ltr;position:absolute;top:18px;left:50%;transform:translateX(-50%);width:min(34vw,460px);height:8px;background:rgba(255,255,255,.12);border-radius:6px;border:1px solid var(--line)}
+#track::after{content:"🏁";position:absolute;right:-22px;top:-7px;font-size:14px}
+#trk-tank,#trk-target{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;transform:translate(-50%,-50%)}
+#trk-tank{background:var(--gold);box-shadow:0 0 10px var(--gold)}
+#trk-target{background:var(--green);box-shadow:0 0 8px var(--green);width:10px;height:10px}
+#kills{position:absolute;top:34px;left:50%;transform:translateX(-50%);font-size:13px;opacity:.85}
+/* weapons */
+#weapons{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:8px;pointer-events:auto}
+.slot{position:relative;width:96px;height:74px;border-radius:12px;background:var(--panel);border:1px solid rgba(255,255,255,.12);display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;transition:transform .15s,border-color .15s}
+.slot .key{position:absolute;top:4px;right:7px;font-size:11px;font-weight:800;color:var(--gold)}
+.slot .ic{font-size:22px;line-height:1}
+.slot .nm{font-size:11px;margin-top:4px;white-space:nowrap}
+.slot .am{position:absolute;bottom:3px;left:7px;font-size:11px;font-weight:700;color:var(--gold2)}
+.slot .cd{position:absolute;bottom:0;left:0;right:0;height:0;background:rgba(0,0,0,.55)}
+.slot .lock{display:none;position:absolute;inset:0;align-items:center;justify-content:center;font-size:20px;background:rgba(0,0,0,.6)}
+.slot.locked .lock{display:flex}
+.slot.active{border-color:var(--gold);transform:translateY(-6px);box-shadow:0 0 18px rgba(212,175,55,.45)}
+/* bottom right gauges */
+#gauges{position:absolute;bottom:16px;right:14px;padding:10px 14px;font-size:13px;display:flex;flex-direction:column;gap:4px;text-align:left}
+#gauges b{color:var(--gold2)}
+#brand{position:absolute;bottom:14px;left:14px;font-size:11px;opacity:.55;letter-spacing:1px;direction:ltr}
+#hitfx{position:absolute;inset:0;box-shadow:inset 0 0 140px 30px rgba(220,30,20,.85);opacity:0}
+#disabled{display:none;position:absolute;top:30%;left:50%;transform:translateX(-50%);padding:12px 24px;font-size:20px;font-weight:800;color:#ffb199;background:rgba(80,0,0,.55);border:1px solid #ff6a4a;border-radius:12px;animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.6}}
+#toasts{position:absolute;top:120px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px}
+.toast{padding:8px 18px;border-radius:30px;background:rgba(10,10,10,.8);border:1px solid rgba(255,255,255,.15);font-size:15px;font-weight:700;animation:tin .3s ease-out;transition:opacity .5s,transform .5s}
+.toast.out{opacity:0;transform:translateY(-10px)}
+.toast.ok{border-color:var(--green);color:#c8ffd2}
+.toast.warn{border-color:#ff7a4a;color:#ffd0c0}
+.toast.gold{border-color:var(--gold);color:var(--gold2);background:rgba(40,30,5,.85)}
+.toast.blue{border-color:var(--blue);color:#cfe8ff}
+@keyframes tin{from{opacity:0;transform:translateY(10px) scale(.95)}}
+#floaters{position:absolute;inset:0}
+.floater{position:absolute;left:0;top:0;font-weight:900;font-size:16px;text-shadow:0 2px 3px #000;white-space:nowrap}
+#banner{position:absolute;top:34%;left:50%;transform:translate(-50%,-50%);text-align:center;opacity:0}
+#banner.show{animation:ban 3.2s ease-out}
+#banner small{display:block;font-size:18px;color:var(--gold);letter-spacing:2px}
+#banner b{display:block;font-size:56px;font-weight:900;text-shadow:0 4px 20px rgba(0,0,0,.7);color:#fff}
+#banner span{font-size:20px;opacity:.85}
+@keyframes ban{0%{opacity:0;transform:translate(-50%,-40%)}15%,75%{opacity:1;transform:translate(-50%,-50%)}100%{opacity:0;transform:translate(-50%,-55%)}}
+/* screens */
+.screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .35s}
+.screen.show{opacity:1;pointer-events:auto}
+#menu{background:linear-gradient(90deg,rgba(0,0,0,.15) 0%,rgba(0,0,0,.25) 45%,rgba(0,0,0,.82) 100%);justify-content:flex-start;padding-right:7vw}
+.menu-box{width:min(440px,90vw);display:flex;flex-direction:column;gap:12px}
+.logo{margin-bottom:10px}
+.logo .en{font-size:62px;font-weight:900;letter-spacing:4px;direction:ltr;text-align:right;background:linear-gradient(180deg,#fff6cf,var(--gold) 55%,#8a6a1c);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 4px 12px rgba(0,0,0,.6));line-height:1}
+.logo .ar{font-size:30px;font-weight:800;color:#fff;margin-top:4px;text-shadow:0 3px 12px #000}
+.logo .tag{font-size:14px;opacity:.8;margin-top:6px}
+.btn{pointer-events:auto;padding:14px 22px;font:inherit;font-size:18px;font-weight:800;color:var(--txt);background:rgba(15,15,15,.75);border:1px solid var(--line);border-radius:12px;cursor:pointer;text-align:right;transition:all .15s}
+.btn:hover{background:rgba(212,175,55,.18);border-color:var(--gold);transform:translateX(-4px)}
+.btn.primary{background:linear-gradient(180deg,#e9c95a,#b8902a);color:#1a1405;border-color:#f3d77a}
+.btn.primary:hover{filter:brightness(1.08)}
+#menu-info{font-size:13px;opacity:.8;min-height:18px}
+.credit{margin-top:14px;font-size:12px;opacity:.75;line-height:1.8}
+.credit a{color:var(--gold2);text-decoration:none}
+.dialog{width:min(640px,92vw);max-height:86vh;overflow:auto;padding:26px 28px;background:rgba(10,10,12,.92);border:1px solid var(--line);border-radius:18px}
+.dialog h2{color:var(--gold2);font-size:26px;margin-bottom:14px}
+.dialog .keys{display:grid;grid-template-columns:auto 1fr;gap:8px 18px;font-size:15px;margin-bottom:16px}
+kbd{display:inline-block;min-width:26px;padding:2px 7px;margin:0 2px;border-radius:6px;background:#222;border:1px solid #444;border-bottom-width:3px;font-family:inherit;font-size:13px;text-align:center;direction:ltr}
+.dialog p,.dialog li{font-size:14px;line-height:1.9;opacity:.9}
+.dialog ul{padding-inline-start:20px;margin-bottom:14px}
+.dialog .actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+.dialog label{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.07)}
+select,input[type=range]{accent-color:var(--gold);font:inherit;background:#1a1a1a;color:#fff;border:1px solid #444;border-radius:8px;padding:4px 8px}
+#pause,#complete,#help,#settings{background:rgba(0,0,0,.55)}
+#cmp-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 16px}
+#cmp-stats div{padding:12px;border-radius:12px;background:rgba(255,255,255,.05);display:flex;flex-direction:column;gap:4px}
+#cmp-stats span{font-size:12px;opacity:.7}
+#cmp-stats b{font-size:22px;color:var(--gold2)}
+#cmp-next{font-size:15px;color:#c8ffd2}
+#loader{position:fixed;inset:0;background:#000;display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--gold);z-index:99;transition:opacity .6s}
+body.ready #loader{opacity:0;pointer-events:none}
+@media (max-width:900px){#status{width:240px}#objp{width:260px}.slot{width:70px}.logo .en{font-size:42px}}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud" class="layer">
+  <div id="hitfx"></div>
+  <div id="status" class="panel">
+    <div class="row"><span id="lvl">المرحلة 1</span><span id="env"></span></div>
+    <div class="bar" id="hp-bar"><div class="fill" id="hp-fill"></div><span id="hp-txt" dir="ltr"></span></div>
+    <div class="bar" id="xp-bar"><div class="fill" id="xp-fill"></div><span id="xp-txt" dir="ltr"></span></div>
+  </div>
+  <div id="objp" class="panel"><h4><span>⚑ المهمة الحالية</span><span id="obj-count"></span></h4><div id="obj"></div><div id="passengers"></div></div>
+  <div id="track"><div id="trk-target"></div><div id="trk-tank"></div></div>
+  <div id="kills"></div>
+  <div id="weapons"></div>
+  <div id="gauges" class="panel"><span id="aim"></span><span id="spd"></span></div>
+  <div id="brand">IBRAPROGRAM · @ibraprogram</div>
+  <div id="disabled"></div>
+  <div id="toasts"></div>
+  <div id="floaters"></div>
+  <div id="banner"></div>
+</div>
+
+<div id="menu" class="screen">
+  <div class="menu-box">
+    <div class="logo"><div class="en">IBRA TANK</div><div class="ar">درع الصحراء</div><div class="tag">دبابة ثلاثية الأبعاد · مراحل لا تنتهي · طوّر دبابتك مع كل معركة</div></div>
+    <button class="btn primary" id="btn-play">ابدأ اللعب</button>
+    <div id="menu-info"></div>
+    <button class="btn" id="btn-new">لعبة جديدة من البداية</button>
+    <button class="btn" id="btn-help">طريقة اللعب والتحكم</button>
+    <button class="btn" id="btn-settings">الإعدادات</button>
+    <button class="btn" id="btn-exit">خروج</button>
+    <div class="credit">تصميم وتطوير إبراهيم الخزرجي<br>
+      <a href="https://t.me/ibraprogram" data-ext>تليكرام t.me/ibraprogram</a> · <a href="https://www.tiktok.com/@ibraprogram" data-ext>تيك توك @ibraprogram</a></div>
+  </div>
+</div>
+
+<div id="help" class="screen"><div class="dialog">
+  <h2>طريقة اللعب</h2>
+  <div class="keys">
+    <span><kbd>→</kbd><kbd>←</kbd> أو <kbd>D</kbd><kbd>A</kbd></span><span>تحريك الدبابة يمين ويسار</span>
+    <span><kbd>↑</kbd><kbd>↓</kbd> أو <kbd>W</kbd><kbd>S</kbd></span><span>رفع وتنزيل المدفع (أو عجلة الماوس)</span>
+    <span><kbd>Space</kbd> أو كليك الماوس</span><span>إطلاق النار (اضغط مطوّلاً للرمي المتواصل)</span>
+    <span><kbd>1</kbd> … <kbd>6</kbd></span><span>تبديل السلاح من أرقام الكيبورد</span>
+    <span><kbd>Q</kbd><kbd>E</kbd></span><span>السلاح السابق / التالي</span>
+    <span><kbd>P</kbd> أو <kbd>Esc</kbd></span><span>إيقاف مؤقت</span>
+    <span><kbd>M</kbd> · <kbd>F11</kbd></span><span>كتم الصوت · ملء الشاشة</span>
+  </div>
+  <ul>
+    <li>كل عدو تقضي عليه يعطيك خبرة <b>XP</b> — الدبابة تتطور تلقائياً: ضرر أكبر، درع أقوى، سرعة أعلى، وتتغير شكلها بتجهيزات جديدة (دروع جانبية، دروع تفاعلية، رشاش آلي، راجمة صواريخ…).</li>
+    <li>اجمع الصناديق من الأرض ومن <b>حطام الآليات</b>: 🟨 سلاح جديد · 🟩 ذخيرة · 🟥 تصليح · 🟦 قطع تطوير.</li>
+    <li>الأسلحة: مدفع رئيسي، رشاش، قذيفة كبيرة شديدة الانفجار، صواريخ موجهة، قذيفة عنقودية، مدفع كهرومغناطيسي.</li>
+    <li>المهام تتغير: توصيل جندي صديق، تبديل الجنود بين النقاط، نقل أكثر من جندي، تدمير القوافل، حماية موقع، تطهير المنطقة.</li>
+    <li>الدبابة ما تموت! إذا تضررت بالكامل تتصلح تلقائياً وتكمّل.</li>
+    <li>المراحل لا تنتهي وتصعب مع الوقت: صحراء، منطقة مدمرة، مدينة مدمرة، ريف، جليد — نهار وظهر وغروب وليل.</li>
+  </ul>
+  <div class="actions"><button class="btn" data-back>رجوع</button></div>
+</div></div>
+
+<div id="settings" class="screen"><div class="dialog">
+  <h2>الإعدادات</h2>
+  <label>مستوى الصوت <input type="range" id="vol" min="0" max="1" step="0.05"></label>
+  <label>جودة الرسومات
+    <select id="quality"><option value="high">عالية</option><option value="medium">متوسطة</option><option value="low">منخفضة (أجهزة ضعيفة)</option></select></label>
+  <label>ملء الشاشة <button class="btn" id="btn-fs" style="padding:6px 16px;font-size:14px">تبديل</button></label>
+  <div class="actions"><button class="btn" data-back>رجوع</button></div>
+</div></div>
+
+<div id="pause" class="screen"><div class="dialog" style="width:min(420px,90vw)">
+  <h2>إيقاف مؤقت</h2>
+  <div class="actions" style="flex-direction:column">
+    <button class="btn primary" id="btn-resume">متابعة</button>
+    <button class="btn" id="btn-pause-help">التحكم</button>
+    <button class="btn" id="btn-menu">القائمة الرئيسية (يحفظ التقدم)</button>
+  </div>
+</div></div>
+
+<div id="complete" class="screen"><div class="dialog" style="width:min(520px,92vw)">
+  <h2 id="cmp-title">اكتملت المرحلة!</h2>
+  <div id="cmp-stats"></div>
+  <div id="cmp-next"></div>
+  <div class="actions"><button class="btn primary" id="btn-next">المرحلة التالية ⟵</button></div>
+</div></div>
+
+<div id="loader">IBRA TANK…</div>
+<script src="game.bundle.js"></script>
+</body>
+</html>

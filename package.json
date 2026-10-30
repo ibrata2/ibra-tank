@@ -1,0 +1,52 @@
+{
+  "name": "ibra-tank",
+  "productName": "IBRA TANK",
+  "version": "1.0.0",
+  "description": "IBRA TANK — درع الصحراء: لعبة دبابة ثلاثية الأبعاد بمراحل لا تنتهي",
+  "author": "Ibrahim Al-Khazraji (IBRAPROGRAM)",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/ibrata2/ibra-tank.git" },
+  "main": "main.js",
+  "scripts": {
+    "bundle": "esbuild src/game.js --bundle --minify --format=iife --outfile=src/game.bundle.js",
+    "start": "npm run bundle && electron .",
+    "dist": "npm run bundle && electron-builder --win nsis --x64",
+    "dist:portable": "npm run bundle && electron-builder --win portable --x64"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^45.1.0",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
+    "resedit": "^3.1.0",
+    "three": "^0.187.0"
+  },
+  "build": {
+    "appId": "com.ibraprogram.ibratank",
+    "productName": "IBRA TANK",
+    "copyright": "© Ibrahim Al-Khazraji — IBRAPROGRAM",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["main.js", "preload.js", "build/icon.png", "src/index.html", "src/game.bundle.js", "package.json"],
+    "afterPack": "scripts/after-pack.js",
+    "asar": true,
+    "win": {
+      "target": ["nsis"],
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false,
+      "artifactName": "IBRA-TANK-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "IBRA TANK",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerLanguages": ["ar_SA", "en_US"],
+      "language": "1025",
+      "runAfterFinish": true
+    }
+  }
+}
