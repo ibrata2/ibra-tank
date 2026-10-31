@@ -13,7 +13,7 @@ export function rng(seed = 1) {
 export function canvasTex(w, h, draw, { repeat = [1, 1], srgb = true, wrap = true } = {}) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
-  const g = c.getContext('2d');
+  const g = c.getContext('2d', { willReadFrequently: true });
   draw(g, w, h);
   const t = new THREE.CanvasTexture(c);
   if (wrap) { t.wrapS = t.wrapT = THREE.RepeatWrapping; }
@@ -329,4 +329,19 @@ export function markerTex(color, text) {
     g.fillStyle = '#0b0b0b'; g.font = 'bold 34px Tahoma, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText(text, w / 2, 54);
   }, { wrap: false });
+}
+
+export function drawIraqFlagCanvas(g, w, h) {
+  g.fillStyle = '#ce1126'; g.fillRect(0, 0, w, h / 3 + 1);
+  g.fillStyle = '#ffffff'; g.fillRect(0, h / 3, w, h / 3 + 1);
+  g.fillStyle = '#000000'; g.fillRect(0, (2 * h) / 3, w, h / 3 + 1);
+  g.fillStyle = '#007a3d';
+  g.font = `bold ${Math.round(h * 0.25)}px Tahoma, "Segoe UI", "Noto Kufi Arabic", "Noto Sans Arabic", Arial, sans-serif`;
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('الله أكبر', w / 2, h / 2 + 1);
+}
+let _iqFlag;
+export function iraqFlagTexture() {
+  if (!_iqFlag) _iqFlag = canvasTex(300, 200, drawIraqFlagCanvas, { wrap: false });
+  return _iqFlag;
 }

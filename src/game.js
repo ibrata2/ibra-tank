@@ -3,7 +3,7 @@ import { World, levelEnv } from './world.js';
 import { buildTank, buildSoldier, buildJeep, buildTruck, buildAPC, buildHeli, buildCrate, buildFlag, buildProp, SOLDIER_TYPES, mat } from './models.js';
 import { FX } from './fx.js';
 import { Sfx } from './audio.js';
-import { rng, markerTex } from './textures.js';
+import { rng, markerTex, iraqFlagTexture, drawIraqFlagCanvas } from './textures.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = THREE.MathUtils.clamp;
@@ -448,7 +448,7 @@ function spawnFriend(x) {
   m.root.position.set(x, ground(x), 0.8);
   m.body.rotation.y = Math.PI * 0.75;
   scene.add(m.root);
-  const marker = new THREE.Sprite(new THREE.SpriteMaterial({ map: markerTex('#5dff8a', 'صديق'), depthTest: false, transparent: true }));
+  const marker = new THREE.Sprite(new THREE.SpriteMaterial({ map: markerTex('#5dff8a', 'عراقي'), depthTest: false, transparent: true }));
   marker.scale.set(1.6, 2, 1); marker.position.set(x, ground(x) + 3.6, 0.8); marker.renderOrder = 20;
   scene.add(marker);
   const f = { x, m, marker, state: 'wait', t: Math.random() * 5, seat: -1, idx: G.friends.length };
@@ -469,7 +469,7 @@ function boardFriend(f) {
   f.m.legL.rotation.z = 1.45; f.m.legR.rotation.z = 1.45;
   f.m.body.position.y = -0.85;
   sfx.pickup();
-  toast('صعد الجندي الصديق على الدبابة', 'ok');
+  toast('صعد الجندي العراقي على الدبابة 🫡', 'ok');
 }
 
 function dropFriend(f, x) {
@@ -541,15 +541,15 @@ class Mission {
     this.kinds = kinds;
     const seg = (length - 40) / kinds.length;
     kinds.forEach((k, i) => this.build(k, 30 + i * seg, 30 + (i + 1) * seg));
-    this.objs.push({ type: 'reach', x: length, label: 'اوصل لنهاية الخريطة' });
+    this.objs.push({ type: 'reach', x: length, label: 'تقدّم وارفع العلم العراقي بنهاية المنطقة' });
   }
   build(kind, s0, s1) {
     const w = s1 - s0, L = this.L;
     const f = (x) => ({ x, i: null });
     if (kind === 'escort') {
       const a = f(s0 + w * 0.15);
-      this.objs.push({ type: 'pickup', f: a, label: 'التقط الجندي الصديق' });
-      this.objs.push({ type: 'deliver', f: a, x: s1 - w * 0.05, label: 'أوصل الجندي إلى نقطة التسليم' });
+      this.objs.push({ type: 'pickup', f: a, label: 'التقط الجندي العراقي' });
+      this.objs.push({ type: 'deliver', f: a, x: s1 - w * 0.05, label: 'أوصل الجندي العراقي إلى نقطة التسليم' });
     } else if (kind === 'relay') {
       const a = f(s0 + w * 0.12), c = s0 + w * 0.5, b = f(c + 4);
       this.objs.push({ type: 'pickup', f: a, label: 'التقط الجندي الأول' });
@@ -586,14 +586,14 @@ class Mission {
         scene.add(o.flag.root); G.flags.push(o.flag); o.flag.root.visible = false;
       }
       if (o.type === 'defend') {
-        o.flag = buildFlag('#1565c0', '⛨', 7);
+        o.flag = buildFlag('#ce1126', '', 7, { tex: iraqFlagTexture() });
         o.flag.root.position.set(o.x, ground(o.x), -1.5);
         scene.add(o.flag.root); G.flags.push(o.flag);
         const sb = buildProp('sandbags', Math.random, world.biome); sb.position.set(o.x - 6, ground(o.x - 6), -2.5); scene.add(sb); G.extra.push(sb);
         const sb2 = buildProp('sandbags', Math.random, world.biome); sb2.position.set(o.x + 4, ground(o.x + 4), -2.5); scene.add(sb2); G.extra.push(sb2);
       }
     }
-    const end = buildFlag('#c9a84c', '★', 8);
+    const end = buildFlag('#c9a84c', '', 8, { tex: iraqFlagTexture() });
     end.root.position.set(this.length, ground(this.length), -1.5);
     scene.add(end.root); G.flags.push(end); this.endFlag = end;
     this.begin();
@@ -630,7 +630,7 @@ class Mission {
     else if (o.type === 'pickup') done = o.f.obj.state === 'ride';
     else if (o.type === 'deliver') {
       o.flag.wave(G.t);
-      if (o.f.obj.state === 'ride' && Math.abs(P.x - o.x) < 4.5) { dropFriend(o.f.obj, o.x); done = true; toast('تم تسليم الجندي بنجاح ✔', 'ok'); }
+      if (o.f.obj.state === 'ride' && Math.abs(P.x - o.x) < 4.5) { dropFriend(o.f.obj, o.x); done = true; toast('تم تسليم الجندي العراقي بنجاح ✔', 'ok'); }
     } else if (o.type === 'kill') {
       o.prog = G.levelKills - o.killBase;
       done = o.prog >= o.n;
@@ -706,7 +706,8 @@ function buildLevel(L) {
   const mission = new Mission(L);
   G.length = mission.length;
   world.build(L, mission.length, L * 131 + 7);
-  const { biome, time } = levelEnv(L);
+  const { biome, time, region } = levelEnv(L);
+  G.region = region;
   G.biome = biome; G.time = time;
   renderer.toneMappingExposure = time.exposure;
   headL.intensity = time.night ? 160 : 0;
@@ -743,7 +744,7 @@ function buildLevel(L) {
     spawnCrate(x + 1.5, i === 0 && firstLocked >= 0 ? 'weapon' : (r() < 0.5 ? 'parts' : 'ammo'));
   });
   for (let x = 60; x < mission.length; x += 70 + r() * 60) spawnCrate(x, ['ammo', 'repair', 'parts'][Math.floor(r() * 3)]);
-  hud.setLevel(L, biome, time);
+  hud.setLevel(L, region, time);
 }
 
 function levelComplete() {
@@ -754,7 +755,8 @@ function levelComplete() {
   const prev = S.level;
   S.level++;
   save();
-  $('cmp-title').textContent = `اكتملت المرحلة ${prev}!`;
+  $('cmp-title').textContent = `تحرّرت ${G.region ? G.region.name : 'المنطقة'}!`;
+  $('cmp-sub').textContent = `المرحلة ${prev} · محافظة ${G.region ? G.region.gov : ''} — عاش العراق`;
   $('cmp-stats').innerHTML = `
     <div><span>الأعداء المقضى عليهم</span><b>${G.levelKills}</b></div>
     <div><span>الآليات المدمرة</span><b>${G.vehicleKills}</b></div>
@@ -762,7 +764,7 @@ function levelComplete() {
     <div><span>الخبرة المكتسبة</span><b>+${G.xpGained}</b></div>
     <div><span>مستوى الدبابة</span><b>${S.plv}</b></div>`;
   const next = levelEnv(S.level);
-  $('cmp-next').textContent = `المرحلة ${S.level}: ${next.biome.name} — ${next.time.name}`;
+  $('cmp-next').textContent = `المرحلة ${S.level}: ${next.region.name} (محافظة ${next.region.gov}) — ${next.time.name}`;
   show('complete');
 }
 
@@ -1016,11 +1018,11 @@ const hud = {
       this.slots.push(el);
     });
   },
-  setLevel(L, biome, time) {
+  setLevel(L, region, time) {
     $('lvl').textContent = `المرحلة ${L}`;
-    $('env').textContent = `${biome.name} · ${time.name}`;
+    $('env').textContent = `${region.name} · ${time.name}`;
     const b = $('banner');
-    b.innerHTML = `<small>المرحلة ${L}</small><b>${biome.name}</b><span>${time.name}</span>`;
+    b.innerHTML = `<small>المرحلة ${L} · محافظة ${region.gov}</small><b>${region.name}</b><span>${time.name}</span>`;
     b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
   },
   update(dt) {
@@ -1158,6 +1160,7 @@ function updatePlayer(dt) {
   tank.root.rotation.z = P.slope + P.recoil * 0.035 * P.facing * (P.recoil > 0.5 ? 1 : 0);
   tank.setFacing(P.facing);
   tank.setAim(P.aim);
+  tank.waveFlag(G.t, P.vx);
   tank.gunPivot.position.x = 1.85 - Math.min(P.recoil, 1) * 0.45;
   tank.turret.position.y = Math.sin(G.t * 30) * 0.008 * Math.min(1, Math.abs(P.vx));
   tank.spinWheels(P.vx * P.facing * dt);
@@ -1309,7 +1312,7 @@ function frame() {
   if (G.state === 'play') { stepPlay(dt); hud.update(dt); updateFloaters(dt); }
   else if (G.state === 'menu') {
     // idle tank in menu
-    tank.setFacing(1); tank.setAim(0.12 + Math.sin(G.t * 0.5) * 0.05);
+    tank.setFacing(1); tank.setAim(0.12 + Math.sin(G.t * 0.5) * 0.05); tank.waveFlag(G.t, 1.5);
     tank.root.position.set(P.x, ground(P.x), 0);
     traj.visible = false;
     sfx.engine(0, false);
@@ -1326,6 +1329,7 @@ function frame() {
 }
 
 // ============================================================ BOOT
+document.querySelectorAll('canvas.iqflag').forEach(c => drawIraqFlagCanvas(c.getContext('2d'), c.width, c.height));
 buildLevel(S.level);
 tank.setTier(stats().tier);
 refreshMenu();
@@ -1335,4 +1339,5 @@ frame();
 setTimeout(() => document.body.classList.add('ready'), 100);
 
 // debug hooks for automated tests
+window.__w = world;
 window.__game = { G, P, get S() { return S; }, startGame, buildLevel, WEAPONS, spawnVehicle, spawnSoldier, addXP, keys, stepPlay, fx, ground, nextLevel };

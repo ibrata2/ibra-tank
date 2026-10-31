@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { camoTexture, plainTexture, treadTexture, wheelTexture, wallTexture, crateTexture, flagTexture, rng } from './textures.js';
+import { camoTexture, plainTexture, treadTexture, wheelTexture, wallTexture, crateTexture, flagTexture, rng, iraqFlagTexture } from './textures.js';
 
 const matCache = new Map();
 export function mat(key, make) {
@@ -199,6 +199,28 @@ export function buildTank(scheme = 'player', seed = 3) {
   // tier hack: put slat's top plate on turret, not needed exactly
   turret.attach(topPlate);
 
+  // العلم العراقي على الدبابة
+  let flagWave = null;
+  if (scheme === 'player') {
+    const fm = mat('iqflagdecal', () => new THREE.MeshStandardMaterial({ map: iraqFlagTexture(), roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -2 }));
+    for (const z of [1, -1]) {
+      const d = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 0.5), fm);
+      d.position.set(-1.25, 2.3, z * 1.445); if (z < 0) d.rotation.y = Math.PI; turret.add(d);
+      const d2 = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.4), fm);
+      d2.position.set(-2.6, 1.52, z * 1.86); if (z < 0) d2.rotation.y = Math.PI; body.add(d2);
+    }
+    const fp = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 2.2, 6), mat('flagpole', () => std('#cfcfcf', 0.4, 0.8)));
+    fp.position.set(-2.1, 3.4, 0.95); turret.add(fp);
+    const cg = new THREE.PlaneGeometry(1.1, 0.72, 10, 3); cg.translate(-0.55, 0, 0);
+    const cloth = new THREE.Mesh(cg, new THREE.MeshStandardMaterial({ map: iraqFlagTexture(), side: THREE.DoubleSide, roughness: 0.9 }));
+    cloth.position.set(-2.1, 4.12, 0.95); turret.add(cloth);
+    const cb = cg.attributes.position.array.slice();
+    flagWave = (t, speed) => {
+      const p = cg.attributes.position; const k = 0.5 + Math.min(1, Math.abs(speed) / 6);
+      for (let i = 0; i < p.count; i++) { const x = -cb[i * 3]; p.setZ(i, Math.sin(x * 3 - t * (6 + k * 4)) * 0.09 * x * k); p.setY(i, cb[i * 3 + 1] - x * x * 0.08 * (1.2 - k * 0.6)); }
+      p.needsUpdate = true;
+    };
+  }
   shadowAll(root);
   // disable shadow casting for tiny parts (perf)
   ant.castShadow = ant2.castShadow = false;
@@ -210,6 +232,7 @@ export function buildTank(scheme = 'player', seed = 3) {
     setFacing(f) { body.rotation.y = f > 0 ? 0 : Math.PI; },
     setAim(a) { gunPivot.rotation.z = a; },
     spinWheels(d) { for (const w of wheels) w.rotation.z -= d / 0.4; },
+    waveFlag(t, speed) { if (flagWave) flagWave(t, speed); },
   };
   api.setTier(0);
   return api;
@@ -232,7 +255,7 @@ export const UNIFORMS = {
   urban: ['#5e6063', '#3c3e42', '#808285'],
   winter: ['#dfe3e6', '#a9b0b6', '#f5f7f8'],
   black: ['#2c2d30', '#1a1b1d', '#45474b'],
-  friend: ['#3c5a7a', '#25405a', '#5a7da0'],
+  friend: ['#bba57c', '#8d7a56', '#d2bf96'],
 };
 const SKINS = ['#c99a74', '#a8764f', '#8d5a3b', '#d9b08c', '#6e452b'];
 
@@ -271,7 +294,7 @@ export function buildSoldier(typeKey, uniformKey = 'desert', seed = 1, friendly 
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 14, 10), skin); head.position.y = 1.72; head.scale.set(1, 1.1, 0.95); body.add(head);
   // face details
   const eye = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.03, 0.2), black); eye.position.set(0.14, 1.75, 0); body.add(eye);
-  if (r() < 0.5 && !friendly) { const beard = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.24), black); beard.position.set(0.07, 1.63, 0); body.add(beard); }
+  if (friendly && r() < 0.6) { const mus = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.035, 0.16), black); mus.position.set(0.145, 1.67, 0); body.add(mus); }
 
   // headgear
   const gear = T.gear;
@@ -282,10 +305,9 @@ export function buildSoldier(typeKey, uniformKey = 'desert', seed = 1, friendly 
     if (gear === 'heavy') { const visor = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.16, 0.28), mat('visor', () => std('#111', 0.1, 0.9))); visor.position.set(0.17, 1.72, 0); body.add(visor); }
     if (r() < 0.4) { const goggles = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.3), black); goggles.position.set(0.12, 1.86, 0); body.add(goggles); }
   } else if (gear === 'scarf') {
-    const sc = mat('keff' + (seed % 2), () => std(seed % 2 ? '#e8e2d4' : '#b8b0a0', 0.95, 0));
-    const h = new THREE.Mesh(new THREE.SphereGeometry(0.19, 12, 10), sc); h.position.set(-0.02, 1.76, 0); h.scale.set(1.05, 1.0, 1.0); body.add(h);
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.36, 0.3), sc); tail.position.set(-0.17, 1.55, 0); body.add(tail);
-    const mask = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.27), sc); mask.position.set(0.11, 1.65, 0); body.add(mask);
+    const sc = mat('balaclava' + (seed % 2), () => std(seed % 2 ? '#2b2b2b' : '#3d3f38', 0.95, 0));
+    const h = new THREE.Mesh(new THREE.SphereGeometry(0.175, 12, 10), sc); h.position.set(0, 1.74, 0); h.scale.set(1.0, 1.12, 1.0); body.add(h);
+    const mask = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.16, 0.26), sc); mask.position.set(0.12, 1.66, 0); body.add(mask);
   } else if (gear === 'cap') {
     const c = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.17, 0.12, 12), gearMat); c.position.y = 1.86; body.add(c);
     const bill = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.025, 0.24), gearMat); bill.position.set(0.18, 1.82, 0); body.add(bill);
@@ -314,6 +336,14 @@ export function buildSoldier(typeKey, uniformKey = 'desert', seed = 1, friendly 
     body.add(g); return g;
   };
   const armL = mkArm(0.3), armR = mkArm(-0.3);
+  if (friendly) {
+    const pm = mat('iqpatch', () => new THREE.MeshStandardMaterial({ map: iraqFlagTexture(), roughness: 0.8 }));
+    for (const [arm, z] of [[armL, 0.0765], [armR, -0.0765]]) {
+      const patch = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.08), pm);
+      patch.position.set(0, -0.12, z); if (z < 0) patch.rotation.y = Math.PI; arm.add(patch);
+    }
+    const chest = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.1), pm); chest.position.set(0.205, 1.38, 0.12); chest.rotation.y = Math.PI / 2; body.add(chest);
+  }
 
   // weapon
   const weapon = new THREE.Group();
@@ -594,22 +624,23 @@ export function buildCrate(kind) {
   return { root: g, box, ring };
 }
 
-export function buildFlag(color, symbol, poleH = 6) {
+export function buildFlag(color, symbol, poleH = 6, opts = {}) {
   const g = new THREE.Group();
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, poleH, 8), mat('flagpole', () => std('#cfcfcf', 0.4, 0.8)));
   pole.position.y = poleH / 2; g.add(pole);
   const clothGeo = new THREE.PlaneGeometry(2.2, 1.4, 12, 4); clothGeo.translate(1.1, 0, 0);
-  const cloth = new THREE.Mesh(clothGeo, new THREE.MeshStandardMaterial({ map: flagTexture(color, symbol), side: THREE.DoubleSide, roughness: 0.9 }));
+  const cloth = new THREE.Mesh(clothGeo, new THREE.MeshStandardMaterial({ map: opts.tex || flagTexture(color, symbol), side: THREE.DoubleSide, roughness: 0.9 }));
   cloth.position.y = poleH - 0.75; g.add(cloth);
   const base = clothGeo.attributes.position.array.slice();
   const ring = new THREE.Mesh(new THREE.RingGeometry(3.2, 3.6, 48), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }));
-  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.08; g.add(ring);
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.08; if (opts.ring !== false) g.add(ring);
   shadowAll(g); ring.castShadow = false;
   return {
     root: g, ring,
     wave(t) {
       const p = clothGeo.attributes.position;
-      for (let i = 0; i < p.count; i++) { const x = base[i * 3]; p.setZ(i, Math.sin(x * 2.2 - t * 6) * 0.18 * x / 2.2); }
+      const ph = this.phase || 0;
+      for (let i = 0; i < p.count; i++) { const x = base[i * 3]; p.setZ(i, Math.sin(x * 2.2 - t * 6 + ph) * 0.18 * x / 2.2); }
       p.needsUpdate = true;
     },
   };

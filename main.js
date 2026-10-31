@@ -13,7 +13,7 @@ function create() {
     minWidth: 960,
     minHeight: 540,
     backgroundColor: '#000000',
-    title: 'IBRA TANK — درع الصحراء',
+    title: 'IBRA TANK — درع العراق',
     icon: path.join(__dirname, 'build', 'icon.png'),
     autoHideMenuBar: true,
     show: false,

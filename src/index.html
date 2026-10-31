@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>IBRA TANK — درع الصحراء</title>
+<title>IBRA TANK — درع العراق</title>
 <style>
 :root{--gold:#d4af37;--gold2:#f3d77a;--bg:#0b0b0c;--panel:rgba(12,12,14,.72);--line:rgba(212,175,55,.35);--txt:#f2ead7;--red:#e5483b;--green:#5dd879;--blue:#5ab4ff}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -83,7 +83,8 @@ body.playing #game{cursor:crosshair}
 .menu-box{width:min(440px,90vw);display:flex;flex-direction:column;gap:12px}
 .logo{margin-bottom:10px}
 .logo .en{font-size:62px;font-weight:900;letter-spacing:4px;direction:ltr;text-align:right;background:linear-gradient(180deg,#fff6cf,var(--gold) 55%,#8a6a1c);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 4px 12px rgba(0,0,0,.6));line-height:1}
-.logo .ar{font-size:30px;font-weight:800;color:#fff;margin-top:4px;text-shadow:0 3px 12px #000}
+.logo .ar{font-size:30px;font-weight:800;color:#fff;margin-top:4px;text-shadow:0 3px 12px #000;display:flex;align-items:center;gap:12px;justify-content:flex-start}
+.logo .ar canvas{width:54px;height:36px;border-radius:3px;box-shadow:0 2px 8px rgba(0,0,0,.6)}
 .logo .tag{font-size:14px;opacity:.8;margin-top:6px}
 .btn{pointer-events:auto;padding:14px 22px;font:inherit;font-size:18px;font-weight:800;color:var(--txt);background:rgba(15,15,15,.75);border:1px solid var(--line);border-radius:12px;cursor:pointer;text-align:right;transition:all .15s}
 .btn:hover{background:rgba(212,175,55,.18);border-color:var(--gold);transform:translateX(-4px)}
@@ -135,7 +136,7 @@ body.ready #loader{opacity:0;pointer-events:none}
 
 <div id="menu" class="screen">
   <div class="menu-box">
-    <div class="logo"><div class="en">IBRA TANK</div><div class="ar">درع الصحراء</div><div class="tag">دبابة ثلاثية الأبعاد · مراحل لا تنتهي · طوّر دبابتك مع كل معركة</div></div>
+    <div class="logo"><div class="en">IBRA TANK</div><div class="ar"><canvas class="iqflag" width="90" height="60"></canvas> درع العراق</div><div class="tag">الجيش العراقي يدافع عن الوطن · محافظات ومدن العراق · مراحل لا تنتهي</div></div>
     <button class="btn primary" id="btn-play">ابدأ اللعب</button>
     <div id="menu-info"></div>
     <button class="btn" id="btn-new">لعبة جديدة من البداية</button>
@@ -164,7 +165,7 @@ body.ready #loader{opacity:0;pointer-events:none}
     <li>الأسلحة: مدفع رئيسي، رشاش، قذيفة كبيرة شديدة الانفجار، صواريخ موجهة، قذيفة عنقودية، مدفع كهرومغناطيسي.</li>
     <li>المهام تتغير: توصيل جندي صديق، تبديل الجنود بين النقاط، نقل أكثر من جندي، تدمير القوافل، حماية موقع، تطهير المنطقة.</li>
     <li>الدبابة ما تموت! إذا تضررت بالكامل تتصلح تلقائياً وتكمّل.</li>
-    <li>المراحل لا تنتهي وتصعب مع الوقت: صحراء، منطقة مدمرة، مدينة مدمرة، ريف، جليد — نهار وظهر وغروب وليل.</li>
+    <li>أنت دبابة الجيش العراقي تحرّر مناطق العراق: بغداد، البصرة، الموصل، أربيل، كركوك، بابل، الأهوار، سامراء، أور، زاخو، السليمانية وغيرها — وبعد المناطق الأساسية تتولد مناطق جديدة من كل محافظات العراق بلا نهاية.</li>
   </ul>
   <div class="actions"><button class="btn" data-back>رجوع</button></div>
 </div></div>
@@ -188,7 +189,7 @@ body.ready #loader{opacity:0;pointer-events:none}
 </div></div>
 
 <div id="complete" class="screen"><div class="dialog" style="width:min(520px,92vw)">
-  <h2 id="cmp-title">اكتملت المرحلة!</h2>
+  <div style="display:flex;gap:14px;align-items:center"><canvas class="iqflag" width="96" height="64" style="border-radius:4px;box-shadow:0 2px 10px #000"></canvas><div><h2 id="cmp-title" style="margin:0">اكتملت المرحلة!</h2><div id="cmp-sub" style="opacity:.8;margin-top:4px"></div></div></div>
   <div id="cmp-stats"></div>
   <div id="cmp-next"></div>
   <div class="actions"><button class="btn primary" id="btn-next">المرحلة التالية ⟵</button></div>
