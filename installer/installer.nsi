@@ -1,4 +1,4 @@
-; IBRA TANK — Windows installer (NSIS, built with makensis; no Wine needed)
+﻿; IBRA TANK — Windows installer (NSIS, built with makensis; no Wine needed)
 Unicode true
 SetCompressor /SOLID lzma
 SetCompressorDictSize 64
