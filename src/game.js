@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { World, levelEnv, BIOMES, TIMES } from './world.js';
 import { createSpecial, SP, SPECIAL_REGION, SPECIAL_FLATS, buildGunboat, buildShip } from './special.js';
-import { buildTank, buildSoldier, buildJeep, buildTruck, buildAPC, buildHeli, buildCrate, buildFlag, buildProp, SOLDIER_TYPES, mat } from './models.js';
+import { buildTruck, buildAPC, buildCrate, buildFlag, buildProp, SOLDIER_TYPES, mat } from './models.js';
+import { buildSoldierHD as buildSoldier, buildTankHD as buildTank, buildHeliHD, buildSUV, buildBoatHD, TANK_FAMILIES } from './models_hd.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { FX } from './fx.js';
 import { Sfx } from './audio.js';
 import { rng, markerTex, iraqFlagTexture, drawIraqFlagCanvas } from './textures.js';
@@ -19,6 +21,7 @@ renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 const scene = new THREE.Scene();
+{ const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; scene.environmentIntensity = 0.5; }
 const camera = new THREE.PerspectiveCamera(36, 16 / 9, 0.5, 2000);
 const world = new World(scene);
 const fx = new FX(scene);
@@ -61,7 +64,7 @@ const stats = () => ({
   reload: Math.max(0.5, 1 - 0.03 * (S.plv - 1)),
   speed: Math.min(12, 7.5 * (1 + 0.025 * (S.plv - 1))),
   armor: Math.min(0.5, 0.02 * (S.plv - 1)),
-  tier: Math.min(5, Math.floor((S.plv - 1) / 2)),
+  tier: Math.min(24, S.plv - 1),
 });
 
 // ============================================================ PLAYER
@@ -126,17 +129,17 @@ function spawnVehicle(kind, x) {
   const b = world.biome;
   let m, e;
   const base = { kind, x, y: ground(x), facing: -1, cd: 2 + Math.random() * 2, burst: 0, dead: false, vx: 0, z: 0, wheelSpin: 0 };
-  if (kind === 'jeep') { m = buildJeep(b.vehicle); e = { ...base, hp: 110, w: 4.6, h: 2.3, xp: 35, pref: 18 + Math.random() * 6, speed: 7 }; }
+  if (kind === 'jeep') { m = buildSUV(b.vehicle === 'desert' ? 'desert' : b.vehicle === 'urban' ? 'urban' : b.vehicle === 'winter' ? 'winter' : 'enemyGreen', 4); e = { ...base, hp: 110, w: 4.6, h: 2.3, xp: 35, pref: 18 + Math.random() * 6, speed: 7 }; }
   else if (kind === 'truck') { m = buildTruck(b.vehicle); e = { ...base, hp: 150, w: 6.4, h: 3.0, xp: 40, pref: 26 + Math.random() * 6, speed: 5.5, unloaded: false }; }
   else if (kind === 'apc') { m = buildAPC(b.enemyTank); e = { ...base, hp: 260, w: 7.0, h: 2.9, xp: 60, pref: 20 + Math.random() * 6, speed: 5 }; }
   else if (kind === 'tank') {
     const t = buildTank(b.enemyTank === 'desert' ? 'enemyGrey' : b.enemyTank, 11 + seedCounter++);
-    t.setTier(Math.min(5, Math.floor(S.level / 4)));
+    t.setTier(Math.min(24, Math.floor(S.level * 1.4) + Math.floor(Math.random() * 3)));
     m = { root: t.root, body: t.body, wheels: t.wheels, gunPivot: t.gunPivot, muzzle: t.muzzle, tank: t };
     e = { ...base, hp: 420, w: 7.4, h: 3.0, xp: 100, pref: 22 + Math.random() * 6, speed: 4.2, aim: 0.1 };
-  } else if (kind === 'gunboat') { m = buildGunboat(); e = { ...base, hp: 120, w: 6.6, h: 2.4, xp: 40, pref: 20 + Math.random() * 6, speed: 6.5, z: (Math.random() - 0.5) * 3 }; }
-  else if (kind === 'ship') { m = buildShip(); e = { ...base, hp: 420, w: 15, h: 5.5, xp: 110, pref: 30 + Math.random() * 5, speed: 3.2, z: -2.5 }; }
-  else if (kind === 'heli') { m = buildHeli(b.enemyTank === 'winter' ? 'enemyGrey' : 'enemyGreen'); e = { ...base, hp: 220, w: 7.5, h: 2.5, xp: 120, speed: 9, alt: 13 + Math.random() * 4, hover: Math.random() * 10 }; }
+  } else if (kind === 'gunboat') { m = buildBoatHD(Math.random() < 0.5 ? 'rhib' : 'gunboat', { enemy: true }); e = { ...base, hp: 120, w: 6.6, h: 2.4, xp: 40, pref: 20 + Math.random() * 6, speed: 6.5, z: (Math.random() - 0.5) * 3 }; }
+  else if (kind === 'ship') { m = buildBoatHD('frigate', { enemy: true }); e = { ...base, hp: 420, w: 15, h: 5.5, xp: 110, pref: 30 + Math.random() * 5, speed: 3.2, z: -2.5 }; }
+  else if (kind === 'heli') { m = buildHeliHD(b.enemyTank === 'winter' || b.enemyTank === 'urban' ? 'enemyGrey' : 'enemyGreen', Math.min(24, S.level)); e = { ...base, hp: 220, w: 7.5, h: 2.5, xp: 120, speed: 9, alt: 13 + Math.random() * 4, hover: Math.random() * 10 }; }
   e.hp *= levelMul(); e.max = e.hp; e.m = m;
   scene.add(m.root);
   m.root.position.set(x, e.y, 0);
@@ -406,11 +409,12 @@ function addXP(n) {
   while (S.xp >= xpNeed(S.plv)) { S.xp -= xpNeed(S.plv); S.plv++; leveled = true; }
   if (leveled) {
     const st = stats();
-    const prevTier = tank.upgrades.filter(u => u.visible).length;
+    const prevFam = Math.floor(tank.tier / 5);
     P.hp = st.maxHp;
     tank.setTier(st.tier);
     sfx.levelUp();
-    if (st.tier > prevTier) toast(`تطوّرت الدبابة! مستوى ${S.plv} — درع وتجهيزات جديدة`, 'gold');
+    if (Math.floor(st.tier / 5) > prevFam) toast(`دبابة جديدة! ${TANK_FAMILIES[Math.floor(st.tier / 5)].name} — مستوى ${S.plv}`, 'gold');
+    else if (st.tier < 25) toast(`تطوّرت الدبابة إلى مستوى ${S.plv} — تجهيزات جديدة على الدبابة`, 'gold');
     else toast(`تطوّرت الدبابة إلى مستوى ${S.plv} — ضرر +9٪ ودرع أقوى`, 'gold');
     for (let i = 0; i < 24; i++) fx.spawn({ tex: 'spark', x: P.x + (Math.random() - 0.5) * 7, y: P.y + Math.random() * 3, vy: 3 + Math.random() * 4, life: 1, size0: 0.6, size1: 0.1, color: '#ffd76a' });
     save();
@@ -449,7 +453,7 @@ function refillAmmo(frac = 1) {
 const SEATS = [[-2.7, 1.8, 0.75], [-2.7, 1.8, -0.75], [-1.7, 1.78, 1.45], [-1.7, 1.78, -1.45]];
 function spawnFriend(x) {
   const types = ['rifleman', 'officer', 'grenadier', 'mg'];
-  const m = buildSoldier(types[G.friends.length % types.length], 'desert', 500 + G.friends.length * 7, true);
+  const m = buildSoldier(types[G.friends.length % types.length], 'desert', 500 + G.friends.length * 7, true, { tier: Math.min(4, Math.floor((S.level - 1) / 4)), drone: false });
   m.root.position.set(x, ground(x), 0.8);
   m.body.rotation.y = Math.PI * 0.75;
   scene.add(m.root);
@@ -471,7 +475,7 @@ function boardFriend(f) {
   f.m.root.position.set(s[0], s[1], s[2]);
   f.m.root.rotation.set(0, 0, 0);
   f.m.body.rotation.y = 0;
-  f.m.legL.rotation.z = 1.45; f.m.legR.rotation.z = 1.45;
+  f.m.legL.rotation.z = 1.45; f.m.legR.rotation.z = 1.45; f.m.pose(true);
   f.m.body.position.y = -0.85;
   sfx.pickup();
   toast('صعد الجندي العراقي على الدبابة 🫡', 'ok');
@@ -481,7 +485,7 @@ function dropFriend(f, x) {
   f.state = 'done';
   scene.add(f.m.root);
   f.m.root.position.set(P.x - P.facing * 2, ground(P.x), 2.2);
-  f.m.body.position.y = 0; f.m.legL.rotation.z = 0; f.m.legR.rotation.z = 0;
+  f.m.body.position.y = 0; f.m.legL.rotation.z = 0; f.m.legR.rotation.z = 0; f.m.pose();
   f.target = x + 1.5;
   f.marker.visible = false;
 }
@@ -508,9 +512,9 @@ function updateFriends(dt) {
         const nx = x + Math.sign(dx) * 2.4 * dt;
         f.m.root.position.x = nx; f.m.root.position.y = ground(nx);
         f.m.body.rotation.y = dx > 0 ? 0 : Math.PI;
-        f.m.legL.rotation.z = Math.sin(f.t * 9) * 0.6; f.m.legR.rotation.z = -Math.sin(f.t * 9) * 0.6;
+        f.m.legL.rotation.z = Math.sin(f.t * 9) * 0.6; f.m.legR.rotation.z = -Math.sin(f.t * 9) * 0.6; f.m.pose();
       } else {
-        f.m.legL.rotation.z = 0; f.m.legR.rotation.z = 0;
+        f.m.legL.rotation.z = 0; f.m.legR.rotation.z = 0; f.m.pose();
         f.m.body.rotation.y = -Math.PI / 2 + 0.6; // face camera-ish & salute
         f.m.armR.rotation.z = 2.7; f.m.armR.rotation.x = -0.4;
       }
@@ -798,7 +802,7 @@ function updateEnemies(dt) {
   for (let i = G.enemies.length - 1; i >= 0; i--) {
     const e = G.enemies[i];
     if (e.dead) { updateDead(e, dt); if (e.remove) { scene.remove(e.m.root); G.enemies.splice(i, 1); } continue; }
-    if (G.ceasefire) { if (e.kind === 'soldier') { e.m.legL.rotation.z = 0; e.m.legR.rotation.z = 0; } else if (e.kind === 'heli') e.m.rotor.rotation.y += dt * 30; }
+    if (G.ceasefire) { if (e.kind === 'soldier') { e.m.legL.rotation.z = 0; e.m.legR.rotation.z = 0; e.m.pose(); } else if (e.kind === 'heli') e.m.rotor.rotation.y += dt * 30; }
     else if (e.kind === 'soldier') updateSoldier(e, dt);
     else if (e.kind === 'heli') updateHeli(e, dt);
     else if (e.kind === 'gunboat' || e.kind === 'ship') updateBoatEnemy(e, dt);
@@ -861,7 +865,7 @@ function updateSoldier(e, dt) {
   if (P.vehicle === 'tank' && dist < 3.4 && Math.abs(P.vx) > 1.5 && P.disabled <= 0) { damageEnemy(e, 9999, Math.sign(P.vx), true); G.shake = Math.max(G.shake, 0.15); return; }
   e.walkT += dt * (moving ? 9 : 0);
   const sw = moving ? Math.sin(e.walkT) * 0.65 : 0;
-  e.m.legL.rotation.z = sw; e.m.legR.rotation.z = -sw;
+  e.m.legL.rotation.z = sw; e.m.legR.rotation.z = -sw; e.m.pose();
   e.m.root.position.set(e.x, e.y + (moving ? Math.abs(Math.cos(e.walkT)) * 0.06 : 0), e.z);
   e.m.body.rotation.y = e.facing > 0 ? 0 : Math.PI;
   // shooting
@@ -959,7 +963,7 @@ function updateBoatEnemy(e, dt) {
   e.vx = lerp(e.vx, move * e.speed, dt * 1.2);
   e.x += e.vx * dt;
   if (world.cross) e.x = clamp(e.x, world.cross[0] + 5, world.cross[1] - 5);
-  e.y = world.waterY - 0.2 + Math.sin(G.t * 2 + e.x) * 0.08;
+  e.y = world.waterY - 0.55 + Math.sin(G.t * 2 + e.x) * 0.08;
   e.m.root.position.set(e.x, e.y, e.z);
   e.m.body.rotation.y = want > 0 ? 0 : Math.PI;
   e.m.root.rotation.z = Math.sin(G.t * 1.4 + e.x) * 0.03;
@@ -1202,8 +1206,8 @@ function updatePlayer(dt) {
   tank.setFacing(P.facing);
   tank.setAim(P.aim);
   tank.waveFlag(G.t, P.vx);
-  tank.gunPivot.position.x = 1.85 - Math.min(P.recoil, 1) * 0.45;
-  tank.turret.position.y = Math.sin(G.t * 30) * 0.008 * Math.min(1, Math.abs(P.vx));
+  tank.recoil(P.recoil);
+  tank.turret.position.y = (tank.turret.userData.baseY || 0) + Math.sin(G.t * 30) * 0.008 * Math.min(1, Math.abs(P.vx));
   tank.spinWheels(P.vx * P.facing * dt);
   tank.treadMap.offset.y -= P.vx * P.facing * dt * 0.17;
   // dust & exhaust
@@ -1304,7 +1308,7 @@ function startSpecial() {
   G.lvlForSpecial = Math.max(3, S.level);
   G.camX = P.x + 8; G.camY = ground(P.x) + 5;
   G.special = createSpecial({
-    scene, camera, world, fx, sfx, tank, P, G, keys, ground, stats, toast, fireProj, updatePlayer,
+    scene, camera, world, fx, sfx, tank, P, G, keys, ground, stats, toast, fireProj, updatePlayer, tierIdx: () => stats().tier,
     down: (...c) => down(...c), isFiring: () => firing,
     updateCamera: (dt) => updateCamera(dt, G.t),
     hideTraj: () => { traj.visible = false; },
@@ -1423,7 +1427,7 @@ function frame() {
     fx.update(dt, ground);
     world.update(dt, G.state === 'menu' ? P.x : G.camX, G.t);
   }
-  if (G.special && G.state !== 'menu') G.special.camera(dt); else updateCamera(dt, G.t);
+  if (G.freeCam) { /* debug */ } else if (G.special && G.state !== 'menu') G.special.camera(dt); else updateCamera(dt, G.t);
   renderer.render(scene, camera);
 }
 
@@ -1438,5 +1442,5 @@ frame();
 setTimeout(() => document.body.classList.add('ready'), 100);
 
 // debug hooks for automated tests
-window.__w = world;
-window.__game = { startSpecial, G, P, get S() { return S; }, startGame, buildLevel, WEAPONS, spawnVehicle, spawnSoldier, addXP, keys, stepPlay, fx, ground, nextLevel };
+window.__w = world; window.__tank = tank;
+window.__game = { renderer, THREE, scene, camera, world, models: { buildSoldier, buildTank, buildHeliHD, buildSUV, buildBoatHD }, startSpecial, G, P, get S() { return S; }, startGame, buildLevel, WEAPONS, spawnVehicle, spawnSoldier, addXP, keys, stepPlay, fx, ground, nextLevel };

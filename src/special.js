@@ -2,7 +2,8 @@
 // دبابة ← عمارة ومصعد ← هليكوبتر ← رسالة المبرمج ← دبابة ← هليكوبتر ← النهر ← قارب ← النهاية
 import * as THREE from 'three';
 import { iraqHouse, iraqFlagPole } from './iraq.js';
-import { buildSoldier, buildHeli, buildFlag, mat } from './models.js';
+import { buildFlag, mat } from './models.js';
+import { buildSoldierHD, buildHeliHD, buildBoatHD, boatKindForTier } from './models_hd.js';
 import { iraqFlagTexture, canvasTex, camoTexture } from './textures.js';
 
 const std = (color, rough = 0.7, metal = 0.2, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra });
@@ -128,6 +129,7 @@ export function createSpecial(ctx) {
   const grp = new THREE.Group(); scene.add(grp);
   const r = Math.random;
   let mode = 'cut';
+  let lastVeh = 'tank';
   let dtNow = 0;
   let camTarget = null;
   const camPos = camera.position.clone(), camLook = new THREE.Vector3(P.x, P.y + 2, 0);
@@ -152,19 +154,20 @@ export function createSpecial(ctx) {
   }
   // farewell sign by the far bank
   // vehicles
-  const heli = buildHeli('desert');
+  const TI = ctx.tierIdx();
+  const heli = buildHeliHD('desert', TI);
   const fdm = mat('iqflagdecal3', () => new THREE.MeshStandardMaterial({ map: iraqFlagTexture(), roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -2 }));
   for (const z of [1, -1]) { const d = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.72), fdm); d.position.set(-0.7, 0.15, z * 0.93); if (z < 0) d.rotation.y = Math.PI; heli.body.add(d); }
   grp.add(heli.root);
   const HL = { x: 0, y: 0, z: 0, vx: 0, alt: 11, facing: 1, rotor: 0, cdMG: 0, cdR: 0, min: 0, max: 0 };
   const placeHeli = (x, y, z, facing = 1) => { HL.x = x; HL.y = y; HL.z = z; HL.facing = facing; HL.vx = 0; heli.root.position.set(x, y, z); heli.body.rotation.y = facing > 0 ? 0 : Math.PI; heli.root.rotation.set(0, 0, 0); };
-  placeHeli(TX + tower.padX, roofY() + 1.35, TZ + tower.padZ);
+  placeHeli(TX + tower.padX, roofY() + 1.75, TZ + tower.padZ);
 
-  const boatM = buildPlayerBoat(); grp.add(boatM.root); flags.push(boatM.flag);
+  const boatM = buildBoatHD(boatKindForTier(TI), { flagPole: () => iraqFlagPole(3.4) }); grp.add(boatM.root); if (boatM.flag) flags.push(boatM.flag);
   const BT = { x: SP.cross[0] + 9, vx: 0, facing: 1, cd: 0, min: 0, max: 0 };
-  boatM.root.position.set(BT.x, world.waterY - 0.15, 3.2);
+  boatM.root.position.set(BT.x, world.waterY - 0.5, 3.2);
 
-  const hero = buildSoldier('rifleman', 'desert', 7777, true);
+  const hero = buildSoldierHD('rifleman', 'desert', 7777, true, { tier: Math.min(4, Math.floor(TI / 5)) });
   hero.root.visible = false; grp.add(hero.root);
   const H = { x: 0, y: 0, z: 0, walkT: 0 };
   const heroAt = (x, y, z) => { H.x = x; H.y = y; H.z = z; hero.root.position.set(x, y, z); hero.root.visible = true; };
@@ -205,11 +208,11 @@ export function createSpecial(ctx) {
       hero.body.rotation.y = Math.atan2(-dz, dx);
       H.walkT += dtNow * 9;
       const sw = Math.sin(H.walkT) * 0.6;
-      hero.legL.rotation.z = sw; hero.legR.rotation.z = -sw; hero.armR.rotation.z = 0.95 + sw * 0.2;
+      hero.legL.rotation.z = sw; hero.legR.rotation.z = -sw; hero.pose();
       hero.root.position.set(H.x, H.y + Math.abs(Math.cos(H.walkT)) * 0.05, H.z);
       yield;
     }
-    hero.legL.rotation.z = 0; hero.legR.rotation.z = 0;
+    hero.legL.rotation.z = 0; hero.legR.rotation.z = 0; hero.pose();
   }
   function* jumpTo(x, y, z, dur = 0.6) {
     const x0 = H.x, y0 = H.y, z0 = H.z; let t = 0;
@@ -310,7 +313,7 @@ export function createSpecial(ctx) {
       BT.vx = lerp(BT.vx, input * 8, dt * 1.4);
       BT.x = clamp(BT.x + BT.vx * dt, BT.min, BT.max);
     }
-    const y = world.waterY - 0.15 + Math.sin(G.t * 1.8) * 0.08;
+    const y = world.waterY - 0.5 + Math.sin(G.t * 1.8) * 0.08;
     boatM.root.position.set(BT.x, y, lerp(boatM.root.position.z, auto ? 3.2 : 0, dt * 1.5));
     boatM.body.rotation.y = BT.facing > 0 ? 0 : Math.PI;
     boatM.root.rotation.z = Math.sin(G.t * 1.3) * 0.025 - BT.vx * BT.facing * 0.004;
@@ -356,7 +359,7 @@ export function createSpecial(ctx) {
     tank.root.visible = true;
     P.x = x; P.vx = 0; P.facing = 1; P.y = ground(x); P.vehicle = 'tank';
     G.xMin = x - 12; G.xMax = xMax; G.lockInput = false; G.ceasefire = false;
-    mode = 'tank'; camTarget = null; ctx.setTankUI(true);
+    mode = 'tank'; lastVeh = 'tank'; camTarget = null; ctx.setTankUI(true);
     G.camX = P.x + 8; G.camY = P.y + 5;
   }
 
@@ -398,7 +401,7 @@ export function createSpecial(ctx) {
     yield* rotorTo(1, 2.2);
     yield* heliAuto(HL.x + 4, HL.y + 6, HL.z, 2.0);
     tank.root.position.set(SP.tank2, ground(SP.tank2), 0); tank.setFacing(1); tank.setAim(0.1);
-    mode = 'heli'; P.vehicle = 'heli'; G.ceasefire = false; camTarget = null;
+    mode = 'heli'; lastVeh = 'heli'; P.vehicle = 'heli'; G.ceasefire = false; camTarget = null;
     HL.min = SP.bx - 10; HL.max = SP.pad1 + 6; HL.alt = 13;
     plan(SP.bx + 30, SP.pad1 - 50, 24, [[420, 'jeep'], [470, 'heli'], [540, 'truck'], [590, 'heli'], [610, 'apc']]);
     ctx.toast('🚁 الأسهم للحركة والارتفاع · Space رشاش + صواريخ موجّهة', 'gold');
@@ -406,18 +409,20 @@ export function createSpecial(ctx) {
     yield* until(() => HL.x >= SP.pad1 - 16 && near(50) === 0);
     mode = 'cut'; G.ceasefire = true;
     setObj('🛬 الهبوط…');
-    yield* heliAuto(SP.pad1, ground(SP.pad1) + 1.35, 0, 3.2, 1);
+    camTarget = { fn: () => [HL.x, HL.y + 3, HL.z + 30, HL.x, HL.y - 1, 0], k: 1.8 };
+    yield* heliAuto(SP.pad1, ground(SP.pad1) + 1.75, 0, 3.2, 1);
     yield* rotorTo(0.15, 1.5);
     // ===== 4) The message
     heroAt(SP.pad1 + 0.5, ground(SP.pad1), 1.3);
     camHero(10, 2.6);
     yield* walkTo(SP.pad1 + 5, 3.0, 2.6);
     faceCam();
-    camHero(8, 2.2, 0, 1.3);
+    camHero(8.5, 2.4, 0, 2.3);
+    const armR0 = hero.armR.rotation.z, armL0 = hero.armL.rotation.z;
     hero.armR.rotation.z = 2.8; hero.armL.rotation.z = 2.8;
     sfx.scream(); sfx.scream();
     yield* say('<b class="yell">اسمعوووني زيييين!! 📢</b>', { time: 2.2, shout: true });
-    hero.armR.rotation.z = 0.95; hero.armL.rotation.z = 1.25;
+    hero.armR.rotation.z = armR0; hero.armL.rotation.z = armL0;
     setObj('📢 رسالة من المبرمج…');
     yield* say(MSG1, { hold: 5, big: true });
     // ===== 5) Tank again
@@ -427,7 +432,7 @@ export function createSpecial(ctx) {
     plan(SP.tank2 + 40, SP.flag2 - 40, 24, [[780, 'apc'], [860, 'tank'], [900, 'jeep']]);
     setObj('🎯 رجعنا للدبابة! قاتل حتى العلم الثاني');
     yield* until(() => P.x > SP.tank2 + 60);
-    placeHeli(SP.pad2, ground(SP.pad2) + 1.35, 0, 1); HL.rotor = 0.15;
+    placeHeli(SP.pad2, ground(SP.pad2) + 1.75, 0, 1); HL.rotor = 0.15;
     yield* until(() => P.x >= SP.flag2 - 4 && near() === 0);
     yield* stopTank();
     // ===== 6) Helicopter again
@@ -437,14 +442,15 @@ export function createSpecial(ctx) {
     hero.root.visible = false;
     yield* rotorTo(1, 1.8);
     yield* heliAuto(SP.pad2 + 4, ground(SP.pad2) + 11, 0, 2.2);
-    mode = 'heli'; P.vehicle = 'heli'; G.ceasefire = false; camTarget = null;
+    mode = 'heli'; lastVeh = 'heli'; P.vehicle = 'heli'; G.ceasefire = false; camTarget = null;
     HL.min = SP.pad2 - 10; HL.max = SP.pad3 + 6; HL.alt = 11;
     tank.root.position.set(SP.tank3, ground(SP.tank3), 0); tank.setFacing(1);
     plan(SP.pad2 + 30, SP.pad3 - 45, 22, [[1060, 'heli'], [1110, 'jeep'], [1160, 'heli'], [1180, 'apc']]);
     setObj('🚁 قاتل وتقدّم نحو النهر');
     yield* until(() => HL.x >= SP.pad3 - 16 && near(50) === 0);
     mode = 'cut'; G.ceasefire = true;
-    yield* heliAuto(SP.pad3, ground(SP.pad3) + 1.35, 0, 3, 1);
+    camTarget = { fn: () => [HL.x, HL.y + 3, HL.z + 30, HL.x, HL.y - 1, 0], k: 1.8 };
+    yield* heliAuto(SP.pad3, ground(SP.pad3) + 1.75, 0, 3, 1);
     yield* rotorTo(0.15, 1.2);
     // ===== 7) The river — close-up
     heroAt(SP.pad3 + 0.5, ground(SP.pad3), 1.3);
@@ -452,7 +458,7 @@ export function createSpecial(ctx) {
     setObj('🌊 وصلنا للنهر…');
     yield* walkTo(SP.cross[0] - 4, 2.6, 2.4);
     faceCam();
-    camHero(6.2, 2.0, 1.2, 1.25);
+    camHero(6.5, 2.3, 1.2, 2.35);
     yield* wait(1.2);
     yield* say(MSG2, { click: true, big: true });
     // ===== 8) Boat
@@ -460,7 +466,7 @@ export function createSpecial(ctx) {
     yield* walkTo(SP.cross[0] + 4, 3.2, 3, () => world.waterY + 1.05);
     yield* jumpTo(BT.x - 1, world.waterY + 1.1, 3.2, 0.5);
     hero.root.visible = false;
-    mode = 'boat'; P.vehicle = 'boat'; G.ceasefire = false; camTarget = null;
+    mode = 'boat'; lastVeh = 'boat'; P.vehicle = 'boat'; G.ceasefire = false; camTarget = null;
     BT.min = SP.cross[0] + 6; BT.max = SP.cross[1] - 8; P.aim = 0.08; P.wi = 0;
     plan(99999, 99999, 1, [[SP.cross[0] + 40, 'gunboat'], [SP.cross[0] + 80, 'gunboat'], [SP.cross[0] + 120, 'ship'], [SP.cross[0] + 165, 'gunboat'], [SP.cross[0] + 200, 'gunboat'], [SP.cross[0] + 230, 'ship']]);
     ctx.toast('🚤 ← → حركة · ↑ ↓ المدفع · Space رمي · 1 مدفع · 2 رشاش', 'gold');
@@ -478,7 +484,7 @@ export function createSpecial(ctx) {
     hero.body.rotation.y = 0;
     yield* wait(0.5);
     faceCam();
-    camHero(6.2, 2.0, -1.2, 1.25);
+    camHero(6.5, 2.3, -1.2, 2.35);
     yield* wait(1.0);
     setObj('🤍');
     yield* say(MSG3, { click: true, big: true });
@@ -519,7 +525,8 @@ export function createSpecial(ctx) {
       if (mode === 'tank' && !camTarget) { ctx.updateCamera(dt); camPos.copy(camera.position); camLook.set(G.camX, G.camY - 0.6, 0); return; }
       let px, py, pz, lx, ly, lz, k = 2.2;
       if (camTarget) { [px, py, pz, lx, ly, lz] = camTarget.fn(); k = camTarget.k; }
-      else if (mode === 'heli') { const gy = ground(HL.x); const mid = (HL.y + gy) / 2 + 1; const ax = HL.x + HL.facing * 9 + HL.vx * 0.5; px = ax; py = mid + 4; pz = 46; lx = ax; ly = mid; lz = 0; }
+      else if (mode === 'heli' || lastVeh === 'heli') { const gy = ground(HL.x); const mid = (HL.y + gy) / 2 + 1; const ax = HL.x + HL.facing * 9 + HL.vx * 0.5; px = ax; py = mid + 4; pz = 46; lx = ax; ly = mid; lz = 0; }
+      else if (lastVeh === 'tank') { const ax = P.x + 6; px = ax; py = P.y + 8; pz = 36; lx = ax; ly = P.y + 2; lz = 0; }
       else { const ax = BT.x + BT.facing * 9 + BT.vx * 0.6; px = ax; py = world.waterY + 8.5; pz = 36; lx = ax; ly = world.waterY + 3; lz = 0; }
       const a = 1 - Math.exp(-k * dt);
       camPos.x = lerp(camPos.x, px, a); camPos.y = lerp(camPos.y, py, a); camPos.z = lerp(camPos.z, pz, a);

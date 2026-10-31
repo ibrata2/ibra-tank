@@ -630,7 +630,7 @@ export function buildFlag(color, symbol, poleH = 6, opts = {}) {
   pole.position.y = poleH / 2; g.add(pole);
   const clothGeo = new THREE.PlaneGeometry(2.2, 1.4, 12, 4); clothGeo.translate(1.1, 0, 0);
   const cloth = new THREE.Mesh(clothGeo, new THREE.MeshStandardMaterial({ map: opts.tex || flagTexture(color, symbol), side: THREE.DoubleSide, roughness: 0.9 }));
-  cloth.position.y = poleH - 0.75; g.add(cloth);
+  cloth.position.y = poleH - 0.75; g.add(cloth); cloth.userData.keep = true;
   const base = clothGeo.attributes.position.array.slice();
   const ring = new THREE.Mesh(new THREE.RingGeometry(3.2, 3.6, 48), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }));
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.08; if (opts.ring !== false) g.add(ring);

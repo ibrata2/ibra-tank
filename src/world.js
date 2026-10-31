@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { skyTexture, skylineTexture, groundTex, rng } from './textures.js';
+import { bake } from './models_hd.js';
 import { regionForLevel, buildIraqProp, iraqHouse, landmark, cableSpan, streetSign, billboard, checkpoint, tWalls, taxi, kiaBus, reeds, mudhif, boat, pumpjack, flareStack, oilTank, iraqFlagPole, SHOPS, SLOGANS, streetNames, roadSignLines, pick as pickOne } from './iraq.js';
 
 export const BIOMES = {
@@ -235,6 +236,7 @@ export class World {
     const pick = () => { let v = r() * total; for (const [k, w] of weights) { v -= w; if (v <= 0) return k; } return weights[0][0]; };
     const isWet = (x, z) => (this.water || this.cross) && this.groundY(x, z) < this.waterY + 0.6;
     const add = (obj, x, z, yOff = 0) => {
+      if (!obj.userData.noBake) bake(obj);
       obj.position.set(x, this.groundY(x, z) - 0.05 + yOff, z);
       this.group.add(obj);
       obj.traverse(o => { if (o.userData.update) this.animated.push(o.userData.update); if (o.userData.flags) this.flags.push(...o.userData.flags); });
@@ -261,7 +263,7 @@ export class World {
         const z = conf[0];
         let y = this.groundY(x, z);
         if (k === 'dalal') y = this.waterY - 0.2;
-        lm.position.set(x, y - 0.3, z); lmXs.push([x, k === 'citadel' ? 70 : k === 'tower' ? 25 : 40]);
+        bake(lm); lm.position.set(x, y - 0.3, z); lmXs.push([x, k === 'citadel' ? 70 : k === 'tower' ? 25 : 40]);
         this.group.add(lm);
         lm.traverse(o => { if (o.userData.flags) this.flags.push(...o.userData.flags); });
         if (z > -60) reserved.push([x - (k === 'freedom' ? 32 : 26), x + (k === 'freedom' ? 32 : 26)]);
@@ -284,7 +286,7 @@ export class World {
         const w = h.userData.w, d = h.userData.d;
         const cx = x + w / 2, z = -(4.2 + d / 2);
         h.position.set(cx, Math.min(this.groundY(x, z), this.groundY(x + w, z), this.groundY(cx, z)) - 0.1, z);
-        this.group.add(h);
+        bake(h); this.group.add(h);
         h.traverse(o => { if (o.userData.flags) this.flags.push(...o.userData.flags); });
         x += w + (r() < 0.18 ? 4 + r() * 6 : 0.05);
         // generator wires & poles in front of houses
@@ -299,7 +301,7 @@ export class World {
         const nearLM = lmXs.some(([lx, rad]) => Math.abs(x2 - lx) < rad);
         const h = iraqHouse(r, { floors: (nearLM ? 1 : 2) + Math.floor(r() * (nearLM ? 2 : 4)), night: region.night, damaged: damaged && r() < 0.6, shanasheel: F.has('shanasheel') && r() < 0.3 });
         const w = h.userData.w;
-        if (!isReserved(x2 + w / 2)) { const z = -(19 + r() * 6); h.position.set(x2 + w / 2, this.groundY(x2 + w / 2, z) - 0.3, z); this.group.add(h); }
+        if (!isReserved(x2 + w / 2)) { const z = -(19 + r() * 6); h.position.set(x2 + w / 2, this.groundY(x2 + w / 2, z) - 0.3, z); bake(h); this.group.add(h); }
         x2 += w + 1 + r() * 6;
       }
     }

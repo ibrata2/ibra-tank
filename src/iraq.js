@@ -50,8 +50,24 @@ export function signTex(text, sub, bg, fg = '#ffffff', border = 'rgba(0,0,0,.35)
     fitFont(g, text, w - 40, sub ? 54 : 64);
     g.fillText(text, w / 2, sub ? h * 0.4 : h * 0.52);
     if (sub) { fitFont(g, sub, w - 60, 24, 'bold'); g.globalAlpha = 0.92; g.fillText(sub, w / 2, h * 0.8); g.globalAlpha = 1; }
+    weather(g, w, h, text.length);
   }, { wrap: false }));
 }
+// تعتيق اللافتات: غبار، بهتان ألوان، بقع وصدأ — حتى تبين واقعية مو مضيئة
+function weather(g, w, h, seed) {
+  const r = rng(seed * 31 + 7);
+  g.globalCompositeOperation = 'saturation'; g.fillStyle = 'rgba(128,128,128,0.32)'; g.fillRect(0, 0, w, h);
+  g.globalCompositeOperation = 'multiply'; g.fillStyle = 'rgb(222,212,192)'; g.fillRect(0, 0, w, h);
+  g.globalCompositeOperation = 'source-over';
+  const grd = g.createLinearGradient(0, 0, 0, h); grd.addColorStop(0, 'rgba(90,75,50,0)'); grd.addColorStop(1, 'rgba(90,75,50,0.28)');
+  g.fillStyle = grd; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(${r() < 0.5 ? '70,55,35' : '235,225,205'},${0.04 + r() * 0.08})`; g.beginPath(); g.ellipse(r() * w, r() * h, 6 + r() * 30, 3 + r() * 10, r() * 3, 0, 7); g.fill(); }
+  g.globalAlpha = 0.12; for (let i = 0; i < 30; i++) { g.fillStyle = '#5a3a1e'; g.fillRect(r() * w, r() * h * 0.5, 1 + r() * 2, 10 + r() * 50); } g.globalAlpha = 1;
+  const img = g.getImageData(0, 0, w, h), d = img.data;
+  for (let i = 0; i < d.length; i += 4) { const n = (r() - 0.5) * 18; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+  g.putImageData(img, 0, 0);
+}
+const signMat = (tex, night) => mat('signM|' + tex.uuid + night, () => new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0.05, emissive: night ? '#ffffff' : '#000000', emissiveMap: night ? tex : null, emissiveIntensity: night ? 0.22 : 0 }));
 
 function roadSignTex(lines, bg = '#0f6b3a') {
   return cached('road|' + lines.join('|') + bg, () => canvasTex(512, 256, (g, w, h) => {
@@ -60,6 +76,7 @@ function roadSignTex(lines, bg = '#0f6b3a') {
     g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
     const n = lines.length;
     lines.forEach((l, i) => { fitFont(g, l, w - 70, i === 0 ? 50 : 38, i === 0 ? '900' : 'bold'); g.fillText(l, w / 2, h * (i + 0.5) / n + (n > 2 ? 4 : 0)); });
+    weather(g, w, h, lines.join('').length);
   }, { wrap: false }));
 }
 
@@ -326,13 +343,13 @@ export function iraqHouse(r, o = {}) {
       shutter.material = mat('shopin', () => std('#1a1612', 1, 0));
       const gm = [mat('goods1', () => std('#c0392b', 0.8, 0)), mat('goods2', () => std('#f1c40f', 0.8, 0)), mat('goods3', () => std('#27ae60', 0.8, 0)), mat('goods4', () => std('#ecf0f1', 0.8, 0))];
       for (let i = 0; i < 6; i++) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.5), gm[i % 4]); b.position.set(-w / 2 + 1 + i * (w - 2) / 6, 0.25 + (i % 2) * 0.5, fz + 0.4); g.add(b); }
-      const shopLight = new THREE.Mesh(new THREE.PlaneGeometry(w - 1.2, 0.12), mat('tubelight', () => new THREE.MeshBasicMaterial({ color: '#f4fbff' }))); shopLight.position.set(0, 2.55, fz + 0.11); g.add(shopLight);
+      const shopLight = new THREE.Mesh(new THREE.PlaneGeometry(w - 1.2, 0.12), mat('tubelight2', () => new THREE.MeshStandardMaterial({ color: '#e8eef0', emissive: '#c8d8e0', emissiveIntensity: 0.35 }))); shopLight.position.set(0, 2.55, fz + 0.11); g.add(shopLight);
     }
     g.add(shutter);
     const sw = w - 0.4, sh = Math.min(1.4, sw / 4);
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), new THREE.MeshBasicMaterial({ map: signTex(s[0], s[1], s[2]), fog: true }));
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), signMat(signTex(s[0], s[1], s[2]), !!o.night));
     sign.position.set(0, 2.7 + sh / 2 + 0.05, fz + 0.12);
-    if (damaged) { sign.rotation.z = (r() - 0.5) * 0.25; sign.material.color.set('#9a9a9a'); }
+    if (damaged) { sign.rotation.z = (r() - 0.5) * 0.25; sign.material = mat('signDmg|' + sign.material.map.uuid, () => new THREE.MeshStandardMaterial({ map: sign.material.map, color: '#8a8580', roughness: 0.95 })); }
     g.add(sign);
   }
   g.userData.w = w; g.userData.d = d; g.userData.h = H;
@@ -370,7 +387,7 @@ export function streetSign(text) {
   const g = new THREE.Group();
   const pm = mat('signpole', () => std('#8a8f94', 0.5, 0.6));
   const p = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 3.2, 6), pm); p.position.y = 1.6; g.add(p);
-  const s = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.6), new THREE.MeshBasicMaterial({ map: signTex(text, null, '#1d4f9c', '#ffffff', '#ffffff'), fog: true, side: THREE.DoubleSide }));
+  const s = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.6), new THREE.MeshStandardMaterial({ map: signTex(text, null, '#1d4f9c', '#ffffff', '#ffffff'), roughness: 0.6, metalness: 0.2, side: THREE.DoubleSide }));
   s.position.y = 3.0; g.add(s);
   return shadow(g);
 }
@@ -381,7 +398,7 @@ export function billboard(lines, bg) {
   for (const x of [-2.6, 2.6]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.2, 4, 0.2), pm); p.position.set(x, 2, 0); g.add(p); }
   const panel = new THREE.Mesh(new THREE.BoxGeometry(7.4, 3.7, 0.2), mat('bbback', () => std('#444', 0.7, 0.4)));
   panel.position.y = 5.6; g.add(panel);
-  const face = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 3.5), new THREE.MeshBasicMaterial({ map: roadSignTex(lines, bg), fog: true }));
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 3.5), new THREE.MeshStandardMaterial({ map: roadSignTex(lines, bg), roughness: 0.6, metalness: 0.15 }));
   face.position.set(0, 5.6, 0.11); g.add(face);
   return shadow(g);
 }
@@ -395,7 +412,7 @@ export function checkpoint() {
   const barrier = new THREE.Group();
   const bar = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 3), mat('barrier', () => std('#d32f2f', 0.6, 0.2))); bar.position.set(0, 1.1, 0); barrier.add(bar);
   barrier.position.set(1.6, 0, -1.6); barrier.rotation.x = -1.2; g.add(barrier);
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshBasicMaterial({ map: signTex('سيطرة الجيش العراقي', 'أهلاً بكم', '#2f4a2c'), fog: true }));
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshStandardMaterial({ map: signTex('سيطرة الجيش العراقي', 'أهلاً بكم', '#2f4a2c'), roughness: 0.8 }));
   sign.position.set(0, 3.3, -2.05); g.add(sign);
   const f = iraqFlagPole(6.5); f.root.position.set(-1.8, 0, -3.4); g.add(f.root);
   g.userData.flags = [f];
@@ -500,6 +517,7 @@ export function pumpjack() {
   const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 4, 5), steel); rod.position.set(4.4, -2.2, 0); beamPivot.add(rod);
   const crank = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.4, 0.3), steel); crank.position.set(-2.8, 1.8, 0.7); g.add(crank);
   const motor = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 1.2), steel); motor.position.set(-3, 1.2, 0); g.add(motor);
+  rod.userData.keep = true; crank.userData.keep = true;
   const off = Math.random() * 6;
   g.userData.update = (t) => { beamPivot.rotation.z = Math.sin(t * 1.3 + off) * 0.22; rod.position.y = -2.2 + Math.sin(t * 1.3 + off) * 0.7; crank.rotation.z = t * 1.3 + off; };
   return shadow(g);
