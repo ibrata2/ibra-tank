@@ -110,15 +110,21 @@ export class World {
     const s = this.seeds, h = this.hills;
     let y = h * (1.4 * Math.sin(x * 0.028 + s[0]) + 0.7 * Math.sin(x * 0.071 + s[1]) + 0.22 * Math.sin(x * 0.19 + s[2]));
     // flatten spawn & end area
-    const flat = Math.min(1, Math.max(0, (x - 4) / 20)) * Math.min(1, Math.max(0, (this.length + 10 - x) / 20));
-    return y * flat;
+    let flat = Math.min(1, Math.max(0, (x - 4) / 20)) * Math.min(1, Math.max(0, (this.length + 10 - x) / 20));
+    if (this.flatZones) for (const [a, b] of this.flatZones) flat *= 1 - THREE.MathUtils.smoothstep(x, a - 12, a) * (1 - THREE.MathUtils.smoothstep(x, b, b + 12));
+    y *= flat;
+    if (this.cross) y = y * (1 - this.riverK(x)) - 3.6 * this.riverK(x);
+    return y;
   }
+  riverK(x) { const [a, b] = this.cross; return THREE.MathUtils.smoothstep(x, a - 5, a + 1) * (1 - THREE.MathUtils.smoothstep(x, b - 1, b + 5)); }
+  inRiver(x) { return !!this.cross && x > this.cross[0] - 1 && x < this.cross[1] + 1; }
 
   farHeight(x, z) {
     const az = Math.abs(z);
     const k = THREE.MathUtils.smoothstep(az, 5, 40);
     const b = this.biome.id === 'city' ? 0.4 : this.biome.id === 'mountains' ? 1.8 : 1;
-    let y = k * b * (3.5 * Math.sin(x * 0.05 + z * 0.08 + this.seeds[3]) + 2.2 * Math.sin(x * 0.013 - z * 0.05) + 1.5 * Math.sin(z * 0.2 + x * 0.11)) * (z < 0 ? 1.4 : 0.35);
+    const rk = this.cross ? 1 - this.riverK(x) : 1;
+    let y = rk * k * b * (3.5 * Math.sin(x * 0.05 + z * 0.08 + this.seeds[3]) + 2.2 * Math.sin(x * 0.013 - z * 0.05) + 1.5 * Math.sin(z * 0.2 + x * 0.11)) * (z < 0 ? 1.4 : 0.35);
     if (this.water === 'river') {
       const w = THREE.MathUtils.smoothstep(-z, 11, 15) * (1 - THREE.MathUtils.smoothstep(-z, 30, 35));
       y = y * (1 - w) - 3.2 * w - this.heightAt(x) * w;
@@ -131,13 +137,16 @@ export class World {
   }
   groundY(x, z) { return this.heightAt(x) + this.farHeight(x, z); }
 
-  build(level, length, seed) {
+  build(level, length, seed, override = null) {
     this.clear();
-    const { biome, time, region } = levelEnv(level);
+    const { biome, time, region } = override || levelEnv(level);
+    this.cross = override && override.cross || null;
+    this.flatZones = override && override.flatZones || null;
     this.biome = biome; this.time = time; this.length = length; this.region = region;
     const F = new Set(region.features || []);
     this.water = F.has('marsh') ? 'marsh' : F.has('river') ? 'river' : null;
     this.waterY = this.water === 'marsh' ? -0.75 : -1.3;
+    if (this.cross) this.waterY = -1.1;
     this.animated = []; this.flags = [];
     const r = rng(seed);
     this.seeds = [r() * 6, r() * 6, r() * 6, r() * 6];
@@ -210,13 +219,21 @@ export class World {
       this.waterMat = wm;
     }
 
+    if (this.cross) {
+      const [a, b] = this.cross;
+      const wm2 = new THREE.MeshPhongMaterial({ color: time.night ? '#1a2a40' : '#3f6f86', specular: '#ffffff', shininess: 90, transparent: true, opacity: 0.9 });
+      const wg = new THREE.PlaneGeometry(b - a + 16, 172); wg.rotateX(-Math.PI / 2);
+      const water = new THREE.Mesh(wg, wm2); water.position.set((a + b) / 2, this.waterY, -64); water.receiveShadow = true; this.group.add(water);
+      this.waterMat = wm2;
+    }
+
     // --- props
     const weightsObj = { ...biome.props, ...(region.props || {}) };
     if (F.has('oil')) Object.assign(weightsObj, { pump: 2, oiltank: 1 });
     const weights = Object.entries(weightsObj).filter(([, w]) => w > 0);
     const total = weights.reduce((a, b) => a + b[1], 0);
     const pick = () => { let v = r() * total; for (const [k, w] of weights) { v -= w; if (v <= 0) return k; } return weights[0][0]; };
-    const isWet = (x, z) => this.water && this.groundY(x, z) < this.waterY + 0.1;
+    const isWet = (x, z) => (this.water || this.cross) && this.groundY(x, z) < this.waterY + 0.6;
     const add = (obj, x, z, yOff = 0) => {
       obj.position.set(x, this.groundY(x, z) - 0.05 + yOff, z);
       this.group.add(obj);

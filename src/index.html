@@ -108,6 +108,35 @@ select,input[type=range]{accent-color:var(--gold);font:inherit;background:#1a1a1
 #cmp-stats span{font-size:12px;opacity:.7}
 #cmp-stats b{font-size:22px;color:var(--gold2)}
 #cmp-next{font-size:15px;color:#c8ffd2}
+.btn.special{background:linear-gradient(135deg,rgba(206,17,38,.85),rgba(20,20,20,.9) 55%,rgba(0,122,61,.85));border-color:#f3d77a;display:flex;flex-direction:column;gap:2px;animation:glowb 2.4s ease-in-out infinite}
+.btn.special small{font-size:12px;font-weight:600;opacity:.85}
+@keyframes glowb{50%{box-shadow:0 0 22px rgba(243,215,122,.55)}}
+#speech{position:fixed;left:50%;top:40%;transform:translate(-50%,-100%);max-width:min(460px,86vw);padding:14px 18px 12px;background:rgba(255,255,255,.97);color:#141414;border-radius:18px;font-size:17px;line-height:1.75;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .25s;z-index:30}
+#speech.show{opacity:1;pointer-events:auto}
+#speech::after{content:"";position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);border:14px solid transparent;border-top-color:rgba(255,255,255,.97);border-bottom:0}
+#speech.big{font-size:19px;max-width:min(560px,90vw)}
+#speech .who{font-size:12px;font-weight:800;color:#2e7d32;margin-bottom:4px}
+#speech b{color:#7a1e1e}
+#speech .yell{font-size:28px;color:#c62828}
+#speech.shout{animation:shake .12s linear infinite}
+@keyframes shake{0%{margin-left:-2px}50%{margin-left:2px}100%{margin-left:-2px}}
+#speech a{color:#0d5fc2;font-weight:800;text-decoration:none;direction:ltr;display:inline-block;padding:2px 10px;margin-top:4px;border-radius:20px;background:#e3f0ff}
+#speech .sig{display:inline-block;margin-top:4px;padding:4px 12px;border-radius:10px;background:#111;color:var(--gold2);font-weight:800}
+#speech .hold,#speech .cont{margin-top:10px;font-size:13px;color:#555}
+#speech .holdbar{height:8px;border-radius:6px;background:#e6e6e6;overflow:hidden;margin-bottom:4px}
+#speech .holdbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#007a3d,#2ecc71)}
+#speech .cont{animation:blink 1.2s infinite}
+#credits{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(0,0,0,.72),rgba(0,0,0,.45));opacity:0;pointer-events:none;transition:opacity 1.5s;z-index:40}
+#credits.show{opacity:1;pointer-events:auto}
+#credits .roll{text-align:center;max-width:640px;padding:20px;animation:rollup 2.5s ease-out}
+#credits canvas{width:120px;height:80px;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.6)}
+#credits h1{font-size:34px;color:var(--gold2);margin:14px 0 6px;text-shadow:0 3px 16px #000}
+#credits h2{font-size:15px;color:var(--gold);margin-top:16px;letter-spacing:1px}
+#credits p{font-size:16px;line-height:1.9;text-shadow:0 2px 8px #000}
+#credits p.big{font-size:30px;font-weight:900}
+#credits p.small{opacity:.85;margin-top:10px}
+#credits .btn{margin-top:18px;text-align:center}
+@keyframes rollup{from{transform:translateY(60px);opacity:0}}
 #loader{position:fixed;inset:0;background:#000;display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--gold);z-index:99;transition:opacity .6s}
 body.ready #loader{opacity:0;pointer-events:none}
 @media (max-width:900px){#status{width:240px}#objp{width:260px}.slot{width:70px}.logo .en{font-size:42px}}
@@ -139,6 +168,7 @@ body.ready #loader{opacity:0;pointer-events:none}
     <div class="logo"><div class="en">IBRA TANK</div><div class="ar"><canvas class="iqflag" width="90" height="60"></canvas> درع العراق</div><div class="tag">الجيش العراقي يدافع عن الوطن · محافظات ومدن العراق · مراحل لا تنتهي</div></div>
     <button class="btn primary" id="btn-play">ابدأ اللعب</button>
     <div id="menu-info"></div>
+    <button class="btn special" id="btn-special">🎬 من تمل من هاي اللعبة… تعال هنا 😉<small>مرحلة خاصة: دبابة · هليكوبتر · قارب</small></button>
     <button class="btn" id="btn-new">لعبة جديدة من البداية</button>
     <button class="btn" id="btn-help">طريقة اللعب والتحكم</button>
     <button class="btn" id="btn-settings">الإعدادات</button>

@@ -261,7 +261,7 @@ const hadbaTex = () => cached('hadba', () => canvasTex(256, 512, (g, w, h) => {
 export function iraqHouse(r, o = {}) {
   const g = new THREE.Group();
   const floors = o.floors ?? (1 + Math.floor(r() * 3));
-  const w = o.w ?? (6 + Math.floor(r() * 3) * 2), d = 6 + r() * 3, H = floors * 4;
+  const w = o.w ?? (6 + Math.floor(r() * 3) * 2), d = o.d ?? (6 + r() * 3), H = floors * 4;
   const pal = pick(r, BRICKS);
   const m = houseMat(pal, Math.floor(r() * 3), !!o.night);
   const damaged = !!o.damaged;
@@ -285,7 +285,7 @@ export function iraqHouse(r, o = {}) {
       const p = new THREE.Mesh(new THREE.BoxGeometry(sx, 0.6, sz), trim); p.position.set(px, H + 0.3, pz); g.add(p);
     }
     // water tanks (خزانات الماء)
-    const nt = 1 + Math.floor(r() * 3);
+    const nt = o.plainRoof ? 0 : 1 + Math.floor(r() * 3);
     for (let i = 0; i < nt; i++) {
       const tc = pick(r, ['#1b1b1b', '#efefef', '#2b6cb0', '#e0d6b8', '#1b1b1b']);
       const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 1.2, 14), mat('tank' + tc, () => std(tc, 0.5, 0.1)));
@@ -293,11 +293,11 @@ export function iraqHouse(r, o = {}) {
       const stand = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 1.2), mat('rebar', () => std('#4a3020', 0.6, 0.7))); stand.position.set(tank.position.x, H + 0.3, tank.position.z); g.add(stand);
     }
     // satellite dish (ستلايت)
-    if (r() < 0.7) {
+    if (!o.plainRoof && r() < 0.7) {
       const dish = new THREE.Mesh(new THREE.SphereGeometry(0.6, 12, 6, 0, Math.PI * 2, 0, 0.9), mat('dish', () => std('#e9e9e6', 0.5, 0.3, { side: THREE.DoubleSide })));
       dish.position.set(-w / 2 + 0.8 + r() * (w - 1.6), H + 1.0, fz - 0.8); dish.rotation.x = 1.0 + r() * 0.3; dish.rotation.z = (r() - 0.5); g.add(dish);
     }
-    if (r() < 0.18) { const f = iraqFlagPole(3.2); f.root.position.set(w / 2 - 0.6, H, fz - 0.6); g.add(f.root); g.userData.flags = [f]; }
+    if (!o.plainRoof && r() < 0.18) { const f = iraqFlagPole(3.2); f.root.position.set(w / 2 - 0.6, H, fz - 0.6); g.add(f.root); g.userData.flags = [f]; }
   } else {
     // shell holes
     const hm = mat('hole', () => new THREE.MeshBasicMaterial({ color: '#0d0b09' }));
