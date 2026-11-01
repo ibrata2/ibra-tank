@@ -163,8 +163,8 @@ export class World {
     this.sunOffset = new THREE.Vector3(...time.sunPos);
 
     // --- ground mesh
-    const x0 = -120, x1 = length + 160, z0 = -150, z1 = 22;
-    const segX = Math.min(900, Math.floor((x1 - x0) / 1.5)), segZ = 48;
+    const x0 = -120, x1 = length + 160, z0 = -150, z1 = 120;
+    const segX = Math.min(900, Math.floor((x1 - x0) / 1.5)), segZ = 72;
     const geo = new THREE.PlaneGeometry(x1 - x0, z1 - z0, segX, segZ);
     geo.rotateX(-Math.PI / 2);
     geo.translate((x0 + x1) / 2, 0, (z0 + z1) / 2);
@@ -212,7 +212,7 @@ export class World {
     // --- water (دجلة والفرات / الأهوار)
     if (this.water) {
       const wm = new THREE.MeshPhongMaterial({ color: time.night ? '#1a2a40' : this.water === 'marsh' ? '#4f7a72' : '#3f6f86', specular: '#ffffff', shininess: 90, transparent: true, opacity: 0.88 });
-      const bands = this.water === 'river' ? [[-36, -10]] : [[-150, -4.6], [4.6, 22]];
+      const bands = this.water === 'river' ? [[-36, -10]] : [[-150, -4.6], [4.6, z1]];
       for (const [za, zb] of bands) {
         const wg = new THREE.PlaneGeometry(x1 - x0, zb - za); wg.rotateX(-Math.PI / 2);
         const water = new THREE.Mesh(wg, wm); water.position.set((x0 + x1) / 2, this.waterY, (za + zb) / 2); water.receiveShadow = true;
@@ -224,8 +224,8 @@ export class World {
     if (this.cross) {
       const [a, b] = this.cross;
       const wm2 = new THREE.MeshPhongMaterial({ color: time.night ? '#1a2a40' : '#3f6f86', specular: '#ffffff', shininess: 90, transparent: true, opacity: 0.9 });
-      const wg = new THREE.PlaneGeometry(b - a + 16, 172, Math.min(260, Math.ceil((b - a) / 4)), 32); wg.rotateX(-Math.PI / 2);
-      const water = new THREE.Mesh(wg, wm2); water.position.set((a + b) / 2, this.waterY, -64); water.receiveShadow = true; this.group.add(water);
+      const wg = new THREE.PlaneGeometry(b - a + 16, z1 - z0, Math.min(260, Math.ceil((b - a) / 4)), 32); wg.rotateX(-Math.PI / 2);
+      const water = new THREE.Mesh(wg, wm2); water.position.set((a + b) / 2, this.waterY, (z0 + z1) / 2); water.receiveShadow = true; this.group.add(water);
       this.waterMat = wm2;
       const points = wg.attributes.position;
       this.animated.push(t => {

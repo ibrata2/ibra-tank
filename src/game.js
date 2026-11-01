@@ -1,3 +1,4 @@
+import { flightFrame } from './adventure-controls.mjs';
 import { makeCombinedMission } from './combined.js';
 import { createAdventure } from './adventure.js';
 import { ADVENTURE, ADVENTURE_REGION } from './adventure-plan.mjs';
@@ -1138,6 +1139,14 @@ const hud = {
     $('xp-fill').style.width = (S.xp / xpNeed(S.plv) * 100).toFixed(1) + '%';
     $('xp-txt').textContent = `مستوى ${vehicleName()} ${S.plv} · ${S.xp}/${xpNeed(S.plv)} XP`;
     $('kills').textContent = `☠ ${G.levelKills}`;
+    const airTargets=$('air-targets');airTargets.replaceChildren();
+    if(P.vehicle==='heli'&&!G.special){
+      for(const e of G.enemies.filter(e=>!e.dead&&Math.abs(e.x-P.x)<110).slice(0,14)){
+        const q=new THREE.Vector3(e.x,e.y+(e.h||2)+.8,e.z||0).project(camera);
+        if(q.z<0||q.z>1||Math.abs(q.x)>.94||Math.abs(q.y)>.85)continue;
+        const marker=document.createElement('span');marker.className='story-enemy';marker.innerHTML='◆<small>عدو</small>';marker.style.left=((q.x+1)*50)+'%';marker.style.top=((1-q.y)*50)+'%';airTargets.append(marker);
+      }
+    }
     $('aim').textContent = `زاوية المدفع ${Math.round(P.aim * 180 / Math.PI)}°`;
     $('spd').textContent = `${Math.round(Math.abs(P.vx) * 3.6)} كم/س`;
     if (G.mission) $('obj').innerHTML = G.mission.text();
@@ -1227,8 +1236,10 @@ window.addEventListener('keydown', (ev) => {
   if (ev.code === 'F11' && window.ibra) { ev.preventDefault(); window.ibra.fullscreen(); }
 });
 window.addEventListener('keyup', (ev) => keys.delete(ev.code));
-canvas.addEventListener('mousedown', (ev) => { sfx.init(); if (ev.button === 0) firing = true; });
+canvas.addEventListener('mousedown', (ev) => { sfx.init(); if (ev.button === 0) { firing = true; G.special?.pointerDown?.(ev); } });
 window.addEventListener('mouseup', () => { firing = false; });
+window.addEventListener('mousemove', ev => G.special?.pointerMove?.(ev));
+canvas.addEventListener('contextmenu',ev=>{if(G.special)ev.preventDefault();});
 canvas.addEventListener('wheel', (ev) => { if (G.state === 'play') P.aim = clamp(P.aim - Math.sign(ev.deltaY) * 0.04, P.vehicle === 'heli' ? -1.25 : -0.25, 1.25); }, { passive: true });
 window.addEventListener('blur', () => { keys.clear(); firing = false; if (G.state === 'play') pause(true); });
 const down = (...codes) => codes.some(c => keys.has(c));
@@ -1347,6 +1358,13 @@ function updateCamera(dt, t) {
     world.followSun(P.x, ground(P.x));
     return;
   }
+  if(P.vehicle==='heli'){
+    const gy=ground(P.x),f=flightFrame(P.y-gy);
+    G.camX=lerp(G.camX,P.x+P.facing*24,dt*2.8);G.camY=lerp(G.camY,gy+f.focus,dt*3);
+    camera.fov=lerp(camera.fov,f.fov,dt*4);camera.updateProjectionMatrix();
+    G.shake=Math.max(0,G.shake-dt*2);camera.position.set(G.camX,gy+f.height,f.distance);camera.lookAt(G.camX,G.camY,0);world.followSun(G.camX,G.camY);return;
+  }
+  camera.fov=lerp(camera.fov,window.innerWidth/window.innerHeight<1.4?46:36,dt*4);camera.updateProjectionMatrix();
   const look = P.facing * 9 + P.vx * 0.6;
   G.camX = lerp(G.camX, P.x + look, dt * 2.2);
   const aimLift = Math.max(0, P.aim - 0.4) * 6;
@@ -1392,7 +1410,7 @@ function startSpecial() {
   G.lvlForSpecial = Math.max(3, S.level);
   G.camX = P.x + 8; G.camY = ground(P.x) + 5;
   G.special = createAdventure({
-    scene, camera, world, fx, sfx, tank, P, G, keys, ground, stats, toast, fireProj, updatePlayer, updateCombat, weapons: WEAPONS, spawnSoldier, spawnVehicle, damageEnemy, exit: exitSpecialToMenu, tierIdx: () => stats().tier,
+    scene, camera, world, fx, sfx, tank, P, G, keys, ground, stats, toast, fireProj, updatePlayer, updateCombat, weapons: WEAPONS, spawnSoldier, spawnVehicle, damageEnemy, pause: () => pause(true), exit: exitSpecialToMenu, tierIdx: () => stats().tier,
     down: (...c) => down(...c), isFiring: () => firing,
     updateCamera: (dt) => updateCamera(dt, G.t),
     hideTraj: () => { traj.visible = false; },
@@ -1417,7 +1435,7 @@ function exitSpecialToMenu() {
 }
 
 function pause(p) {
-  if (p && G.state === 'play') { G.state = 'paused'; show('pause'); }
+  if (p && G.state === 'play') { G.special?.releaseMouse?.(); firing = false; G.state = 'paused'; show('pause'); }
   else if (!p && G.state === 'paused') { G.state = 'play'; show(null); }
 }
 function nextLevel() {
