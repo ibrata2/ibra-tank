@@ -21,14 +21,15 @@ const path=require('node:path');const {pathToFileURL}=require('node:url');
     check(!g.G.special.pointerMove&&!g.G.special.pointerDown,'Mouse orbit and pointer lock must be removed');
     let x=g.P.x;g.keys.add('KeyD');frames(12);g.keys.clear();check(g.P.x>x,'D moves right');
     const y=g.P.x;g.keys.add('KeyW');frames(1);g.keys.clear();check(Math.abs(g.P.x-y)<1,'W adjusts aim rather than walking forward');
-    const stages=[['tank-advance',920,6],['false-boarding',null,0],['infantry',1440,10],['board-heli',null,0],['heli-assault',2100,8],['heli-side',2780,8],['allied-boarding',null,0],['joint-battle',3340,12],['return-tank',null,0],['tank-support',3700,8],['air-support',4000,8],['bridge',4700,14],['camp',5120,10]];
+    const stages=[['tank-advance',920,6],['false-boarding',null,0],['infantry',1160,10],['board-car',null,0],['military-drive',1420,8],['board-heli',null,0],['heli-assault',2100,8],['heli-side',2780,8],['allied-boarding',null,0],['joint-battle',3340,12],['return-tank',null,0],['tank-support',3700,8],['air-support',4000,8],['bridge',4700,14],['camp',5120,10]];
     for(const [id,to,kills] of stages){
       check(dbg().view==='side'||!to,'Every combat chapter must use the side camera');
       check(dbg().id===id,'Expected '+id+' got '+dbg().id);log.push(id);
-      if(!to){frames(id==='return-tank'?290:260);continue;}
-      if(id==='infantry'){
+      if(!to){frames(id==='false-boarding'?330:id==='board-car'?170:id==='board-heli'?230:id==='return-tank'?290:260);continue;}
+      if(id==='infantry'){check(dbg().decoyDestroyed,'RPG must destroy the first helicopter before infantry combat');check(dbg().lastReason==='aircraft-destroyed','Infantry transition needs destruction reason');
         g.P.wi=1;g.P.cd.fill(0);g.keys.add('Space');frames(1);g.keys.clear();check(g.P.cd[1]>0,'Infantry must fire shared weapon');
       }
+      if(id==='military-drive'){check(g.P.vehicle==='car'&&dbg().carCrew&&dbg().convoyActive,'Military vehicle must carry support soldier and activate bikes');g.spawnSoldier(g.P.x+35,'rifleman');frames(90);check(seenShots.has('ally-passenger'),'Passenger must fire');check(seenShots.has('ally-bike'),'Bikes must provide real fire support');}
       if(id==='heli-assault'){
         g.P.x=2080;g.P.vx=0;g.P.wi=0;g.P.cd.fill(0);g.keys.add('Space');frames(90);g.keys.clear();check(dbg().fuels[1],'Helicopter shot must destroy second fuel');frames(85);
       }

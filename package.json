@@ -1,7 +1,7 @@
 {
   "name": "ibra-tank",
   "productName": "IBRA TANK",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "description": "IBRA TANK — درع العراق: لعبة دبابة ثلاثية الأبعاد بمراحل لا تنتهي",
   "author": "Ibrahim Al-Khazraji (IBRAPROGRAM)",
   "license": "MIT",
@@ -18,7 +18,8 @@
     "test": "node scripts/test-campaign.mjs && node scripts/test-adventure-plan.mjs",
     "test:story": "node scripts/test-adventure.cjs",
     "test:combined": "node scripts/test-combined.cjs",
-    "test:flight": "node scripts/test-flight.cjs"
+    "test:flight": "node scripts/test-flight.cjs",
+    "test:air-support": "node scripts/test-air-support.cjs"
   },
   "dependencies": {},
   "devDependencies": {

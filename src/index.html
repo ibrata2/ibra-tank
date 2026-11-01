@@ -86,9 +86,9 @@ body.playing #game{cursor:crosshair}
 .logo .ar{font-size:30px;font-weight:800;color:#fff;margin-top:4px;text-shadow:0 3px 12px #000;display:flex;align-items:center;gap:12px;justify-content:flex-start}
 .logo .ar canvas{width:54px;height:36px;border-radius:3px;box-shadow:0 2px 8px rgba(0,0,0,.6)}
 .logo .tag{font-size:14px;opacity:.8;margin-top:6px}
-.btn{pointer-events:auto;padding:14px 22px;font:inherit;font-size:18px;font-weight:800;color:var(--txt);background:rgba(15,15,15,.75);border:1px solid var(--line);border-radius:12px;cursor:pointer;text-align:right;transition:all .15s}
+.btn{pointer-events:auto;padding:14px 22px;font:inherit;font-size:18px;font-weight:800;color:var(--txt);background:linear-gradient(130deg,rgba(255,255,255,.12),rgba(255,255,255,.035));backdrop-filter:blur(16px) saturate(130%);-webkit-backdrop-filter:blur(16px) saturate(130%);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 6px 20px rgba(0,0,0,.16);text-shadow:0 1px 3px #0009;border:1px solid rgba(255,255,255,.25);border-radius:12px;cursor:pointer;text-align:right;transition:all .15s}
 .btn:hover{background:rgba(212,175,55,.18);border-color:var(--gold);transform:translateX(-4px)}
-.btn.primary{background:linear-gradient(180deg,#e9c95a,#b8902a);color:#1a1405;border-color:#f3d77a}
+.btn.primary{background:linear-gradient(140deg,rgba(242,208,102,.32),rgba(166,127,42,.15));color:#fff0b5;border-color:rgba(243,215,122,.65)}
 .btn.primary:hover{filter:brightness(1.08)}
 #menu-info{font-size:13px;opacity:.8;min-height:18px}
 .credit{margin-top:14px;font-size:12px;opacity:.75;line-height:1.8}
@@ -108,7 +108,7 @@ select,input[type=range]{accent-color:var(--gold);font:inherit;background:#1a1a1
 #cmp-stats span{font-size:12px;opacity:.7}
 #cmp-stats b{font-size:22px;color:var(--gold2)}
 #cmp-next{font-size:15px;color:#c8ffd2}
-.btn.special{background:linear-gradient(135deg,rgba(206,17,38,.85),rgba(20,20,20,.9) 55%,rgba(0,122,61,.85));border-color:#f3d77a;display:flex;flex-direction:column;gap:2px;animation:glowb 2.4s ease-in-out infinite}
+.btn.special{background:linear-gradient(135deg,rgba(152,62,64,.16),rgba(255,255,255,.035) 55%,rgba(43,126,91,.16));border-color:#f3d77a;display:flex;flex-direction:column;gap:2px;}
 .btn.special small{font-size:12px;font-weight:600;opacity:.85}
 @keyframes glowb{50%{box-shadow:0 0 22px rgba(243,215,122,.55)}}
 #speech{position:fixed;left:50%;top:40%;transform:translate(-50%,-100%);max-width:min(460px,86vw);padding:14px 18px 12px;background:rgba(255,255,255,.97);color:#141414;border-radius:18px;font-size:17px;line-height:1.75;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .25s;z-index:30}
@@ -140,12 +140,12 @@ select,input[type=range]{accent-color:var(--gold);font:inherit;background:#1a1a1
 #loader{position:fixed;inset:0;background:#000;display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--gold);z-index:99;transition:opacity .6s}
 body.ready #loader{opacity:0;pointer-events:none}
 @media (max-width:900px){#status{width:240px}#objp{width:260px}.slot{width:70px}.logo .en{font-size:42px}}
-.btn.story{display:flex;flex-direction:column;align-items:center;text-align:center;gap:3px;background:linear-gradient(120deg,#173e32,#254f43);border:2px solid #e5c669;box-shadow:0 0 22px #d4af3726}
-.btn.story b{font-size:38px;line-height:1.2;color:#ffdf83}.btn.story small{font-size:13px;color:#f4efdf}
+.btn.story{display:flex;flex-direction:column;align-items:center;text-align:center;gap:3px;padding:12px 22px;background:linear-gradient(130deg,rgba(107,159,131,.16),rgba(255,255,255,.04));border:1px solid rgba(223,201,138,.5)}
+.btn.story b{font-size:18px;line-height:1.2;color:#ffdf83}.btn.story small{font-size:13px;color:#f4efdf}
 #adventure-story{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);display:flex;flex-direction:column;text-align:center;gap:5px;max-width:90vw;width:650px;padding:12px 18px;background:#091711d9;border:1px solid #d5bc6c80;border-radius:12px;pointer-events:none;color:#f6efd8}
 #adventure-story strong{font-size:19px;color:#ffdf83}#adventure-story span{font-size:12px}body:not(.playing) #adventure-story{display:none}#adventure-ending{background:#0009;z-index:40}
 .menu-box{gap:8px}.logo{margin-bottom:2px}.logo .en{font-size:48px}.logo .ar{font-size:25px}.credit{margin-top:4px}
-[hidden]{display:none!important}.mode-picker{position:relative}.mode-picker #mode-toggle{width:100%;background:#182820;color:#fff1c5;border-color:#ad9656}
+[hidden]{display:none!important}.mode-picker{position:relative}.mode-picker #mode-toggle{width:100%;background:linear-gradient(130deg,rgba(102,147,116,.18),rgba(255,255,255,.04));color:#fff1c5;border-color:#ad9656}
 #mode-options{position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:15;padding:6px;background:#101f19;border:1px solid #ad9656;border-radius:12px;box-shadow:0 12px 30px #000a;display:flex;flex-direction:column;gap:3px}
 #mode-options button{font:inherit;font-size:16px;text-align:right;padding:11px 14px;cursor:pointer;color:#f6efd8;background:#101f19;border:1px solid transparent;border-radius:7px}
 #mode-options button:hover,#mode-options button:focus-visible{outline:2px solid #e3c36b;background:#294735}#mode-options [aria-selected="true"]{color:#ffe29a;background:#304c38;border-color:#ad9656}
@@ -180,10 +180,10 @@ body.ready #loader{opacity:0;pointer-events:none}
     <label id="mode-label" for="mode-toggle">اختر مود اللعب</label>
     <div class="mode-picker"><button class="btn" id="mode-toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="mode-options">مود الدبابة ▾</button><div id="mode-options" role="listbox" aria-labelledby="mode-label" hidden><button type="button" role="option" data-mode="tank">مود الدبابة</button><button type="button" role="option" data-mode="heli">مود الهليكوبتر</button><button type="button" role="option" data-mode="boat">مود السفينة</button><button type="button" role="option" data-mode="combined">مود متكامل · دبابة وهليكوبتر وسفينة</button></div><select id="mode" aria-label="مود اللعب" hidden><option value="tank">مود الدبابة</option><option value="heli">مود الهليكوبتر</option><option value="boat">مود السفينة</option><option value="combined">مود متكامل · دبابة وهليكوبتر وسفينة</option></select></div>
     <div id="menu-info"></div>
-    <button class="btn story" id="btn-story"><b>تعال هنا</b><small>من تخلص وتستكشف كلشي تعال</small></button>
     <button class="btn special" id="btn-special">🔐 اكتب رقم<small>10 مراحل سرية بمهام وبيئات مختلفة</small></button>
     <button class="btn" id="btn-new">لعبة جديدة من البداية</button>
     <button class="btn" id="btn-help">طريقة اللعب والتحكم</button>
+    <button class="btn story" id="btn-story" title="جولة قصصية طويلة مع قوات الجيش والحلفاء"><b>هدية الإصدار</b></button>
     <button class="btn" id="btn-settings">الإعدادات</button>
     <button class="btn" id="btn-exit">خروج</button>
     <div class="credit">تصميم وتطوير إبراهيم الخزرجي<br>

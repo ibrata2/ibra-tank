@@ -1,7 +1,8 @@
+import { buildEscortBike } from './escort-bike.js';
 import { wantsWave, waveSize, flightFrame } from './adventure-controls.mjs';
 import * as THREE from 'three';
 import { ADVENTURE as A, CHAPTERS, bridgeHeight } from './adventure-plan.mjs';
-import { buildSoldierHD, buildTankHD, buildHeliHD, buildBoatHD } from './models_hd.js';
+import { buildSoldierHD, buildTankHD, buildHeliHD, buildBoatHD, buildSUV } from './models_hd.js';
 import { iraqFlagPole } from './iraq.js';
 import { canvasTex } from './textures.js';
 
@@ -19,7 +20,8 @@ export function createAdventure(ctx) {
   let heliRunning = false, allyTankActive = false, allyHeliActive = false, shipActive = false;
   let departingTank = false, departingHeli = false, parkedTankX = 22;
   let lastTier = ctx.stats().tier;
-  let walkDistance=0;
+  let walkDistance=0, decoyDestroyed=false, carCrew=false, convoyActive=false, carCd=0, passengerCd=0, lastReason='';
+  const bikeCd=[0,0];
   const oldFov=camera.fov;
   const markers=document.createElement('div');markers.id='story-enemies';document.body.append(markers);
   const markerNodes=Array.from({length:14},()=>{const el=document.createElement('span');el.className='story-enemy';el.innerHTML='◆<small>عدو</small>';markers.append(el);return el;});
@@ -32,6 +34,10 @@ export function createAdventure(ctx) {
   const allyTank = buildTankHD('player', 41); allyTank.setTier(Math.max(6, lastTier)); group.add(allyTank.root);
   const airAlly = buildHeliHD('player', 12); group.add(airAlly.root);
   const ship = buildBoatHD('frigate'); group.add(ship.root);
+  const car=buildSUV('green',4);group.add(car.root);
+  const passenger=buildSoldierHD('mg','desert',1601,true,{tier:3,drone:false});group.add(passenger.root);
+  const bikes=[buildEscortBike(1602),buildEscortBike(1603)];for(const bike of bikes)group.add(bike.root);
+  const attacker=buildSoldierHD('rpg','green',1666,false,{drone:false});attacker.root.visible=false;group.add(attacker.root);
   const heroPos = new THREE.Vector3(4, ctx.ground(4), -1.5);
   const soldiers = [], crew = [], flags = [], fuels = [];
   let allyCd = 0, airCd = 0, shipCd = 0;
@@ -66,7 +72,7 @@ export function createAdventure(ctx) {
     for (let i=0;i<12;i++) { const a=i*Math.PI/6; mesh(new THREE.SphereGeometry(.16,8,6),'#88ffb5',x+Math.cos(a)*9.7,y+.3,z+Math.sin(a)*9.7,group,{emissive:'#44885d',emissiveIntensity:2}); }
   }
   // The opening building has a real open doorway and visible interior.
-  const by = surface(4), building = new THREE.Group(); group.add(building);
+  const by = surface(4), building = new THREE.Group(); group.add(building);building.position.z=-18;
   box(15,.25,13,'#8c8068',2,by-.1,-5,building);
   box(15,4,.3,'#b5a78c',2,by+2,-11.5,building);
   box(.3,4,13,'#b5a78c',-5.5,by+2,-5,building);
@@ -75,12 +81,20 @@ export function createAdventure(ctx) {
   box(3,1,.3,'#aa9d82',0,by+3.5,1.5,building);
   box(15,.25,13,'#796e5b',2,by+4.1,-5,building);
   box(2.5,.8,1,'#6b4e32',1,by+.4,-7,building);
-  sign('مقر العمليات المشتركة',12,2,2,by+5,1.7);
-  pad(A.firstPad, -3); pad(A.secondPad,-3); pad(A.tankSwap,-9);
-  decoy.root.position.set(A.firstPad, surface(A.firstPad)+1.7,-3);
-  heli.root.position.set(A.secondPad, surface(A.secondPad)+1.7,-3);
+  sign('مقر العمليات المشتركة',12,2,2,by+5,-16.3);
+  pad(A.firstPad, -14); pad(A.secondPad,-14); pad(A.tankSwap,-14);
+  decoy.root.position.set(A.firstPad, surface(A.firstPad)+1.7,-14);
+  heli.root.position.set(A.secondPad, surface(A.secondPad)+1.7,-14);
   allyTank.root.position.set(A.alliedCamp+12,surface(A.alliedCamp+12),-4);
   airAlly.root.visible=false; ship.root.visible=false;
+
+  car.root.position.set(A.carStation+8,surface(A.carStation+8),-14);
+  passenger.root.position.set(A.carStation-5,surface(A.carStation),-12);
+  bikes.forEach((m,i)=>m.root.position.set(A.carStation-10-i*5,surface(A.carStation),-16+i*5));
+  attacker.root.position.set(A.firstPad+32,surface(A.firstPad+32),-23);attacker.body.rotation.y=Math.PI;
+  const ambushRocket=mesh(new THREE.CapsuleGeometry(.12,.65,3,8),'#575d36',0,0,0);ambushRocket.visible=false;
+  const burned=new THREE.MeshStandardMaterial({color:'#1e201b',roughness:1});ownMaterial.add(burned);
+  for(const x of [A.secondPad+120,A.secondFuel+150]){const f=ctx.spawnFriend(x);f.optional=true;}
 
   // Physical, destructible fuel drums; impacts, not proximity, trigger the orbit.
   [A.firstFuel,A.secondFuel].forEach((x,i)=> {
@@ -153,33 +167,38 @@ export function createAdventure(ctx) {
     document.getElementById('passengers').textContent=shipActive?'السفينة العراقية تؤمن العبور':allyHeliActive?'إسناد جوي صديق':allyTankActive?'زهراء ونور — دبابة الإسناد':' '; 
   }
   function enter(next) {
-    index=next;elapsed=0;killBase=G.levelKills;spawnTimer=1;const c=chapter();
+    ctx.winch.cancel();index=next;elapsed=0;killBase=G.levelKills;spawnTimer=1;const c=chapter();
     G.ceasefire=!c.to;G.lockInput=!c.to;G.autoDrive=false;heading=0;P.vx=0;walkDistance=0;P.z=0;P.burst=[];P.aim=c.vehicle==='heli'?-.22:.08;P.vehicle=c.vehicle;P.wi=c.vehicle==='tank'?0:1;
     tank.root.visible=c.vehicle==='tank';hero.root.visible=!c.to&&c.vehicle==='soldier';
     ctx.setTankUI(!!c.to);ctx.hideTraj();
-    if(c.id==='intro'){tank.root.visible=true;P.x=4;heroPos.set(0,surface(0),-5);tank.root.position.set(22,surface(22),4);tank.root.rotation.set(0,0,0);}
-    if(c.id==='tank-side'){P.x=22;P.z=4;}
-    if(c.id==='false-boarding'){parkedTankX=P.x;tank.root.visible=true;heroPos.set(P.x-2,surface(P.x),2);}
-    if(c.id==='infantry'){tank.root.visible=true;tank.root.position.set(parkedTankX,surface(parkedTankX),4);hero.root.visible=true;P.x=A.firstPad+16;P.y=surface(P.x);P.z=0;}
-    if(c.id==='board-heli'){heroPos.set(P.x,surface(P.x),P.z);}
-    if(c.id==='heli-assault'){heliRunning=true;hero.root.visible=false;P.x=A.secondPad;P.alt=10;P.y=surface(P.x)+P.alt;}
+    if(!c.to){for(let i=G.enemies.length-1;i>=0;i--){const e=G.enemies[i];if(Math.abs(e.x-P.x)<45){if(e.dead){e.z=-28;e.m.root.position.z=-28;}else{scene.remove(e.m.root);G.enemies.splice(i,1);}}}}
+    if(c.id==='intro'){tank.root.visible=true;P.x=4;heroPos.set(0,surface(0),-23);tank.root.position.set(22,surface(22),-14);tank.root.rotation.set(0,0,0);}
+    if(c.id==='tank-side'){P.x=22;P.z=-14;}
+    if(c.id==='false-boarding'){parkedTankX=P.x;tank.root.visible=true;tank.root.position.z=-14;heroPos.set(P.x-2,surface(P.x),-12);lastReason='land-route-complete';}
+    if(c.id==='infantry'){tank.root.visible=true;tank.root.position.set(parkedTankX,surface(parkedTankX),-14);hero.root.visible=true;P.x=A.firstPad+16;P.y=surface(P.x);P.z=0;}
+    if(c.id==='board-car'){lastReason='infantry-route-complete';heroPos.set(P.x,surface(P.x),-12);}
+    if(c.id==='military-drive'){P.x=A.carStation+8;P.y=surface(P.x);P.z=-14;carCrew=true;convoyActive=true;}
+    if(c.id==='board-heli'){lastReason='ground-route-complete';heroPos.set(P.x,surface(P.x),-12);car.root.position.z=-14;}
+    if(c.id==='heli-assault'){heliRunning=true;P.z=-14;hero.root.visible=false;P.x=A.secondPad;P.alt=10;P.y=surface(P.x)+P.alt;}
     if(c.id==='allied-boarding'){heliRunning=true;P.x=A.alliedCamp;P.y=surface(P.x)+9;}
     if(c.id==='joint-battle'){allyTankActive=true;}
-    if(c.id==='return-tank'){tank.root.visible=true;tank.root.position.set(A.tankSwap+18,surface(A.tankSwap+18),3);heroPos.set(P.x,surface(P.x),-7);}
-    if(c.id==='tank-support'){heliRunning=false;P.x=A.tankSwap+18;P.y=surface(P.x);P.z=3;}
+    if(c.id==='return-tank'){lastReason='air-route-complete';tank.root.visible=true;tank.root.position.set(A.tankSwap+18,surface(A.tankSwap+18),-14);heroPos.set(P.x,surface(P.x),-12);}
+    if(c.id==='tank-support'){heliRunning=false;P.x=A.tankSwap+18;P.y=surface(P.x);P.z=-14;}
     if(c.id==='air-support'){departingTank=true;allyHeliActive=true;airAlly.root.visible=true;airAlly.root.position.set(P.x-40,surface(P.x)+24,-5);}
     if(c.id==='bridge'){shipActive=true;departingHeli=true;ship.root.visible=true;ship.root.position.set(A.bridgeStart+8,world.waterY-.55,-19);}
     if(c.id==='ending'){G.ceasefire=true;complete=true;P.vx=0;P.y=surface(P.x);ctx.setTankUI(false);}
+    const body=c.vehicle==='heli'?heli.body:c.vehicle==='car'?car.body:tank.body;
+    if(['tank','car','heli'].includes(c.vehicle))for(const f of G.friends.filter(f=>f.state==='ride'))body.add(f.m.root);
     objective();ctx.toast(c.title,'gold');
   }
   function targetAhead(max=90, useFuel=true) {
     const c=chapter();
-    if(useFuel&&c.fuel!==undefined){const f=fuels[c.fuel];if(!f.exploded&&Math.abs(f.x-P.x)<max)return {x:f.x,y:f.y,z:f.z,fuel:f};}
-    return G.enemies.filter(e=>!e.dead&&e.x>P.x-2&&e.x<P.x+max).sort((a,b)=>Math.abs(a.x-P.x)-Math.abs(b.x-P.x))[0]||null;
+    if(useFuel&&c.fuel!==undefined){const f=fuels[c.fuel];if(!f.exploded&&(f.x-P.x)*P.facing>1&&(f.x-P.x)*P.facing<max)return {x:f.x,y:f.y,z:f.z,fuel:f};}
+    return G.enemies.filter(e=>!e.dead&&(e.x-P.x)*P.facing>1&&(e.x-P.x)*P.facing<max).sort((a,b)=>Math.abs(a.x-P.x)-Math.abs(b.x-P.x))[0]||null;
   }
   function muzzle() {
     let m;
-    if(P.vehicle==='heli')m=heli.muzzle;else if(P.vehicle==='soldier')m=hero.muzzle;else m=tank.muzzle;
+    if(P.vehicle==='heli')m=heli.muzzle;else if(P.vehicle==='car')m=car.muzzle;else if(P.vehicle==='soldier')m=hero.muzzle;else m=tank.muzzle;
     m.updateWorldMatrix(true,false);const p=m.getWorldPosition(new THREE.Vector3());
     const aim=new THREE.Vector3(Math.cos(P.aim)*P.facing,Math.sin(P.aim),0);
     const target=targetAhead(105);
@@ -204,24 +223,43 @@ export function createAdventure(ctx) {
   function cutscene(dt) {
     const c=chapter(),u=elapsed;
     if(c.id==='intro') {
-      if(u<5)moveHero(new THREE.Vector3(0,0,-5),new THREE.Vector3(0,0,4),u/5);
-      else if(u<12)moveHero(new THREE.Vector3(0,0,4),new THREE.Vector3(20,0,4),(u-5)/7);
-      else {heroPos.set(20+Math.min(2,(u-12)*.8),surface(22)+Math.min(2.2,(u-12)*1.1),4);animateHero(heroPos,0,0);}
+      if(u<5)moveHero(new THREE.Vector3(0,0,-23),new THREE.Vector3(0,0,-14),u/5);
+      else if(u<12)moveHero(new THREE.Vector3(0,0,-14),new THREE.Vector3(20,0,-14),(u-5)/7);
+      else {heroPos.set(20+Math.min(2,(u-12)*.8),surface(22)+Math.min(2.2,(u-12)*1.1),-14);animateHero(heroPos,0,0);}
       P.x=heroPos.x;P.y=heroPos.y;P.z=heroPos.z;
       if(u>=15){enter(index+1);return;}
     } else if(c.id==='false-boarding') {
-      tank.root.visible=true;
-      if(u<2){heroPos.set(parkedTankX-2,surface(parkedTankX)+2*(1-u/2),2);animateHero(heroPos,u*5,0);}
-      else if(u<7)moveHero(new THREE.Vector3(parkedTankX-2,0,2),new THREE.Vector3(A.firstPad,0,-2),(u-2)/5);
-      else {moveHero(new THREE.Vector3(A.firstPad,0,-2),new THREE.Vector3(A.firstPad+16,0,0),(u-7)/5);hero.weapon.visible=true;}
+      tank.root.visible=true;tank.root.position.z=-14;
+      if(u<2){heroPos.set(parkedTankX-2,surface(parkedTankX)+2*(1-u/2),-12);animateHero(heroPos,u*5,0);}
+      else if(u<6)moveHero(new THREE.Vector3(parkedTankX-2,0,-12),new THREE.Vector3(A.firstPad-3,0,-14),(u-2)/4);
+      else if(u<9){heroPos.set(A.firstPad-3,surface(A.firstPad),-14);animateHero(heroPos,0,0);}
+      else moveHero(new THREE.Vector3(A.firstPad-3,0,-14),new THREE.Vector3(A.firstPad+16,0,0),(u-9)/7);
+      attacker.root.visible=u>=5&&u<14;
+      if(u>=6&&u<7.5){
+        attacker.muzzle.updateWorldMatrix(true,false);const start=attacker.muzzle.getWorldPosition(new THREE.Vector3()),end=decoy.root.position.clone();
+        ambushRocket.visible=true;ambushRocket.position.lerpVectors(start,end,(u-6)/1.5);ambushRocket.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),end.sub(start).normalize());
+        fx.spawn({tex:'smoke',additive:false,x:ambushRocket.position.x,y:ambushRocket.position.y,z:ambushRocket.position.z,vy:.4,life:.8,size0:.25,size1:1,alpha:.7,color:'#aaa'});
+      }
+      if(u>=7.5&&!decoyDestroyed){
+        decoyDestroyed=true;lastReason='aircraft-destroyed';ambushRocket.visible=false;
+        decoy.root.traverse(o=>{if(o.isMesh)o.material=burned;});decoy.root.rotation.z=-.22;
+        for(let i=0;i<35;i++)fx.spawn({tex:'fire',x:A.firstPad+(Math.random()-.5)*6,y:surface(A.firstPad)+1+Math.random()*3,z:-14+(Math.random()-.5)*3,vy:2+Math.random()*5,life:1.2,size0:2.5,size1:.1});
+        sfx.explosion(3);G.shake=1.5;ctx.toast('جندي معادٍ ضرب الطائرة بقاذفة — ابتعد عنها وأكمل راجلاً!','warn');
+      }
       P.x=heroPos.x;P.y=heroPos.y;P.z=heroPos.z;
-      if(u>7&&u-dt<=7)ctx.toast('مو هاي الطائرة… أمّن الطريق بسلاحك إلى المهبط الثاني','blue');
-      if(u>=12){enter(index+1);return;}
+      if(u>=16){attacker.root.visible=false;enter(index+1);return;}
+    } else if(c.id==='board-car') {
+      const k=clamp(u/5,0,1);moveHero(new THREE.Vector3(A.carStation-3,0,0),new THREE.Vector3(A.carStation+7,0,-14),k);
+      if(u<5){passenger.root.position.lerpVectors(new THREE.Vector3(A.carStation-5,surface(A.carStation),-12),new THREE.Vector3(A.carStation+7,surface(A.carStation),-13),k);passenger.legL.rotation.z=Math.sin(u*9)*.6;passenger.legR.rotation.z=-Math.sin(u*9)*.6;passenger.pose();}
+      else if(passenger.root.parent!==car.body){car.body.add(passenger.root);passenger.root.position.set(-1,1.7,.9);passenger.legL.rotation.z=1.4;passenger.legR.rotation.z=1.4;passenger.pose(true);hero.root.visible=false;ctx.toast('صعد جندي الإسناد معك — الدراجات تؤمن الطريق','ok');}
+      P.x=heroPos.x;P.y=heroPos.y;P.z=heroPos.z;
+      if(u>=8){enter(index+1);return;}
     } else if(c.id==='board-heli') {
-      moveHero(new THREE.Vector3(A.secondPad-7,0,0),new THREE.Vector3(A.secondPad,0,-3),u/5);
+      car.root.position.z=-14;
+      moveHero(new THREE.Vector3(A.carEnd-3,0,-12),new THREE.Vector3(A.secondPad,0,-14),u/6);
       P.x=heroPos.x;P.y=heroPos.y;P.z=heroPos.z;
-      if(u>5){hero.root.visible=false;heliRunning=true;heli.root.position.y=surface(A.secondPad)+1.7+(u-5)*1.8;}
-      if(u>=10){enter(index+1);return;}
+      if(u>6){hero.root.visible=false;heliRunning=true;const k=clamp((u-6)/5,0,1);heli.root.position.y=surface(A.secondPad)+1.7+k*8.3;heli.root.position.z=lerp(-14,0,k);}
+      if(u>=11){enter(index+1);return;}
     } else if(c.id==='allied-boarding') {
       heli.root.position.set(P.x,P.y,-1);
       crew.forEach((f,i)=>{
@@ -231,8 +269,8 @@ export function createAdventure(ctx) {
       if(u>=12){enter(index+1);return;}
     } else if(c.id==='return-tank') {
       const gy=surface(A.tankSwap);
-      if(u<5){heli.root.position.set(A.tankSwap,lerp(gy+10,gy+1.7,u/5),-9);hero.root.visible=false;}
-      else {hero.root.visible=true;moveHero(new THREE.Vector3(A.tankSwap,0,-7),new THREE.Vector3(A.tankSwap+16,0,3),(u-5)/7);if(u>12){heroPos.y=gy+(u-12)*1.1;animateHero(heroPos,0,0);}}
+      if(u<5){heli.root.position.set(A.tankSwap,lerp(gy+10,gy+1.7,u/5),lerp(0,-14,u/5));hero.root.visible=false;}
+      else {hero.root.visible=true;moveHero(new THREE.Vector3(A.tankSwap,0,-12),new THREE.Vector3(A.tankSwap+16,0,-14),(u-5)/7);if(u>12){heroPos.y=gy+(u-12)*1.1;animateHero(heroPos,0,0);}}
       P.x=A.tankSwap;P.y=gy;P.z=0;
       if(u>=14){enter(index+1);return;}
     } else if(c.id==='ending') {
@@ -243,10 +281,10 @@ export function createAdventure(ctx) {
     const c=chapter();
     const horizontal=(keys('KeyD','ArrowRight')?1:0)-(keys('KeyA','ArrowLeft')?1:0);
     const vertical=(keys('KeyW','ArrowUp')?1:0)-(keys('KeyS','ArrowDown')?1:0);
-    const speed=c.vehicle==='soldier'?5.4:c.vehicle==='heli'?15:10.5;
+    const speed=c.vehicle==='soldier'?5.4:c.vehicle==='heli'?15:c.vehicle==='car'?13:10.5;
     const from=index===1?22:CHAPTERS.slice(0,index).reverse().find(s=>s.to)?.to||0;
     const response=1-Math.exp(-dt*(c.vehicle==='soldier'?10:4));
-    P.vx=lerp(P.vx,horizontal*speed,response);
+    P.vx=ctx.winch.busy&&c.vehicle==='heli'?0:lerp(P.vx,horizontal*speed,response);
     P.x=clamp(P.x+P.vx*dt,Math.max(2,from-35),c.to+(c.fuel!==undefined?20:8));
     P.z=lerp(P.z,0,dt*5);
     if(Math.abs(P.vx)>.2)P.facing=Math.sign(P.vx);
@@ -256,6 +294,8 @@ export function createAdventure(ctx) {
     if(c.vehicle==='heli'){
       P.alt=clamp(P.alt+((keys('KeyR')?1:0)-(keys('KeyF')?1:0))*dt*5,5,22);P.y+=P.alt;
       heli.root.position.set(P.x,P.y,P.z);heli.body.rotation.y=heading;heli.root.rotation.z=-P.vx*.008;
+    }else if(c.vehicle==='car'){
+      car.root.position.set(P.x,P.y,P.z);car.body.rotation.y=heading;car.gunPivot.rotation.z=P.aim;for(const wheel of car.wheels)wheel.rotation.z-=P.vx*dt*1.8;
     }else if(c.vehicle==='soldier'){
       hero.root.visible=true;animateHero(new THREE.Vector3(P.x,P.y,P.z),movingSpeed>.15?walkDistance:0,heading);hero.body.rotation.z=lerp(hero.body.rotation.z,-P.vx*.006,dt*7);
     }else {
@@ -270,7 +310,7 @@ export function createAdventure(ctx) {
         const e=ctx.spawnSoldier(P.x+24+i*5+Math.random()*12,['rifleman','rpg','mg','grenadier'][(i+index)%4]);
         e.z=(Math.random()-.5)*5;e.m.root.position.z=e.z;
       }
-      if(c.vehicle!=='soldier')ctx.spawnVehicle(index===13?'heli':index>5?'tank':'jeep',P.x+60);
+      if(c.vehicle!=='soldier')ctx.spawnVehicle(c.id==='bridge'?'heli':index>5?'tank':'jeep',P.x+60);
       else if(Math.random()<.35)ctx.spawnVehicle('jeep',P.x+58);
     }
     const done=P.x>=c.to-5&&chapterKills()>=c.kills&&(c.fuel===undefined||fuels[c.fuel].exploded);
@@ -282,11 +322,17 @@ export function createAdventure(ctx) {
     const e=G.enemies.filter(e=>!e.dead&&e.x>origin.x-5&&Math.abs(e.x-origin.x)<range).sort((a,b)=>a.x-b.x)[0];
     if(!e)return .3;
     const aim=new THREE.Vector3(e.x,e.kind==='heli'?e.y:e.y+1.2,e.z||0).sub(origin).normalize();
-    ctx.fireProj({owner:'player',source:model===allyTank?'ally-tank':model===airAlly?'ally-heli':'ally-ship',kind,x:origin.x,y:origin.y,z:origin.z,vx:aim.x*65,vy:aim.y*65,vz:aim.z*65,g:0,dmg:kind==='bullet'?18:100,splash:kind==='bullet'?0:4});
+    ctx.fireProj({owner:'player',source:model===allyTank?'ally-tank':model===airAlly?'ally-heli':model===ship?'ally-ship':model===car?'ally-car':model===passenger?'ally-passenger':'ally-bike',kind,x:origin.x,y:origin.y,z:origin.z,vx:aim.x*65,vy:aim.y*65,vz:aim.z*65,g:0,dmg:kind==='bullet'?18:100,splash:kind==='bullet'?0:4});
     if(kind==='bullet')sfx.mg();else sfx.cannon();
     return kind==='bullet'?.18:2.5;
   }
   function allies(dt) {
+    if(convoyActive&&chapter().to){
+      if(P.vehicle!=='car'){car.root.position.x=lerp(car.root.position.x,P.x-15,dt*.8);car.root.position.y=surface(car.root.position.x);car.root.position.z=-5;for(const wheel of car.wheels)wheel.rotation.z-=dt*12;carCd=friendlyFire(car,carCd,dt,'bullet',90);}
+      if(carCrew)passengerCd=friendlyFire(passenger,passengerCd,dt,'bullet',85);
+      bikes.forEach((bike,i)=>{bike.root.position.x=lerp(bike.root.position.x,P.x-7-i*7,dt*1.2);bike.root.position.y=surface(bike.root.position.x);bike.root.position.z=i?5:-5;for(const wheel of bike.wheels)wheel.rotation.z-=dt*15;bikeCd[i]=friendlyFire(bike,bikeCd[i],dt,'bullet',85);});
+    }
+
     if(allyTankActive){
       const target=departingTank?P.x+130:P.x+12;
       allyTank.root.position.x=lerp(allyTank.root.position.x,target,dt*(departingTank?.55:.8));
@@ -305,12 +351,13 @@ export function createAdventure(ctx) {
       ship.root.position.x=lerp(ship.root.position.x,clamp(P.x+8,A.bridgeStart+12,A.bridgeEnd-12),dt*.6);
       ship.root.position.y=world.waterY-.55+Math.sin(G.t)*.08;ship.root.userData.radar.rotation.y+=dt*3;
       shipCd=friendlyFire(ship,shipCd,dt,'shell',110);
-      if(index===14&&P.x>A.bridgeEnd+50){shipActive=false;ctx.toast('السفينة تبقى لحماية الجسر — الطريق إلى المعسكر آمن','ok');}
+      if(chapter().id==='camp'&&P.x>A.bridgeEnd+50){shipActive=false;ctx.toast('السفينة تبقى لحماية الجسر — الطريق إلى المعسكر آمن','ok');}
     }
   }
   function cameraPose(view) {
     const x=P.x,y=P.y,z=P.z||0;
     if(view==='hero') {
+      if(chapter().id==='false-boarding'&&elapsed>=5.5&&elapsed<9){const t=elapsed<6?attacker.root.position.clone().add(new THREE.Vector3(0,1.5,0)):elapsed<7.5?ambushRocket.position:decoy.root.position;return {pos:new THREE.Vector3(A.firstPad+10,surface(A.firstPad)+6,7),look:t.clone()};}
       if(chapter().id==='intro'&&elapsed<5)return {pos:new THREE.Vector3(heroPos.x+.7,heroPos.y+2.6,heroPos.z-3.5),look:heroPos.clone().add(new THREE.Vector3(0,1.3,0))};
       if(chapter().id==='allied-boarding')return {pos:new THREE.Vector3(A.alliedCamp+19,surface(A.alliedCamp)+5,13),look:new THREE.Vector3(A.alliedCamp+9,surface(A.alliedCamp)+1.8,-3)};
       if(chapter().id==='ending')return {pos:new THREE.Vector3(A.finish+8,surface(A.finish)+9,40),look:finalSign.position.clone()};
@@ -318,15 +365,16 @@ export function createAdventure(ctx) {
     }
     if(P.vehicle==='heli'){const f=flightFrame(y-surface(x));return {pos:new THREE.Vector3(x+24,surface(x)+f.height,f.distance),look:new THREE.Vector3(x+24,surface(x)+f.focus,0)};}
     const mid=y;
-    return {pos:new THREE.Vector3(x+10,mid+9,index===13?62:42),look:new THREE.Vector3(x+10,mid+2,index===13?-7:0)};
+    return {pos:new THREE.Vector3(x+10,mid+9,chapter().id==='bridge'?62:42),look:new THREE.Vector3(x+10,mid+2,chapter().id==='bridge'?-7:0)};
   }
   enter(0);
   return {
     depthCombat:true,
+    carrierRoot:()=>heli.root,carrierBody:()=>P.vehicle==='heli'?heli.body:P.vehicle==='car'?car.body:tank.body,
     muzzleInfo:muzzle,
     projectileHit:impact,
     projectileGround:(x,z)=>x>=A.bridgeStart&&x<=A.bridgeEnd&&Math.abs(z)>6.5?world.waterY:surface(x),
-    dbg:()=>({chapter:index,id:chapter().id,view:chapter().view,vehicle:P.vehicle,elapsed,kills:chapterKills(),complete,fuels:fuels.map(f=>f.exploded),allies:{tank:allyTankActive,heli:allyHeliActive,ship:shipActive},walkDistance,enemies:G.enemies.filter(e=>!e.dead).length}),
+    dbg:()=>({chapter:index,id:chapter().id,view:chapter().view,vehicle:P.vehicle,elapsed,kills:chapterKills(),complete,fuels:fuels.map(f=>f.exploded),allies:{tank:allyTankActive,heli:allyHeliActive,ship:shipActive},walkDistance,decoyDestroyed,lastReason,carCrew,convoyActive,enemies:G.enemies.filter(e=>!e.dead).length}),
     update(dt) {
       elapsed+=dt;spawnTimer-=dt;
       const c=chapter();
@@ -355,7 +403,7 @@ export function createAdventure(ctx) {
       });
     },
     dispose() {
-      markers.remove();camera.fov=oldFov;camera.updateProjectionMatrix();tank.turret.rotation.y=0;scene.remove(group);panel.remove();ending.remove();world.driveHeight=null;P.z=0;tank.root.rotation.set(0,0,0);G.ceasefire=false;G.lockInput=false;
+      ctx.winch.cancel();markers.remove();camera.fov=oldFov;camera.updateProjectionMatrix();tank.turret.rotation.y=0;scene.remove(group);panel.remove();ending.remove();world.driveHeight=null;P.z=0;tank.root.rotation.set(0,0,0);G.ceasefire=false;G.lockInput=false;
       for(const geo of ownGeometry)geo.dispose();for(const material of ownMaterial){material.map?.dispose();material.dispose();}
     },
   };

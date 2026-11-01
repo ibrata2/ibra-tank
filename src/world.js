@@ -134,7 +134,7 @@ export class World {
       const island = Math.max(0, Math.sin(x * 0.045 + z * 0.11 + this.seeds[2]) * Math.sin(z * 0.07 - x * 0.02)) * 3.2;
       y = y * (1 - w) * 0.3 + w * (-2.2 + island) - this.heightAt(x) * w;
     }
-    return y;
+    return this.region?.special ? y * THREE.MathUtils.smoothstep(az,24,45) : y;
   }
   groundY(x, z) { return this.heightAt(x) + this.farHeight(x, z); }
 
@@ -282,7 +282,7 @@ export class World {
 
     this.perf.lm = performance.now() - T0;
     // --- start: Iraqi army checkpoint (سيطرة)
-    add(checkpoint(), -4, -1.2);
+    add(checkpoint(), -4, region.special ? -20 : -1.2);
 
     // --- streets: Iraqi houses with shops, signs, generator cables
     if (F.has('street')) {

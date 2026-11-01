@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {ADVENTURE as A,CHAPTERS,bridgeHeight} from '../src/adventure-plan.mjs';
 import {combinedPlan} from '../src/combined-plan.mjs';
-assert.equal(CHAPTERS.length,16);
+assert.equal(CHAPTERS.length,18);
 assert.deepEqual(CHAPTERS.filter(c=>c.fuel!==undefined).map(c=>c.fuel),[0,1]);
 assert.ok(CHAPTERS.find(c=>c.id==='infantry').view==='side');
 assert.ok(CHAPTERS.find(c=>c.id==='bridge').to===A.bridgeEnd);
@@ -20,3 +20,6 @@ const {wantsWave,flightFrame}=await import('../src/adventure-controls.mjs');
 assert.ok(wantsWave(10,0));assert.ok(!wantsWave(22,0));assert.ok(!wantsWave(10,1));
 for(const altitude of [5,10,22]){const f=flightFrame(altitude);assert.ok(f.distance>=52);assert.ok(f.focus<altitude);assert.equal(f.fov,52);}
 console.log('Side-only combat, continuous waves and helicopter framing: passed');
+
+assert.ok(CHAPTERS.some(c=>c.vehicle==='car'&&c.to));
+assert.ok(CHAPTERS.some(c=>c.id==='board-car'&&!c.to));

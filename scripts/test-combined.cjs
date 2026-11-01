@@ -13,8 +13,8 @@ while(g.G.state==='play'&&count++<15){const o=mission.cur;
   check(g.S.level===startLevel,'Transfer must stay in same stage');
   check(mission.hero.root.visible||o.to==='boat','Boarding actor must be present');
   const t=mission.transfer.t;window.dispatchEvent(new KeyboardEvent('keydown',{code:'Escape',key:'Escape'}));check(g.G.state==='paused','Pause must work while boarding');check(mission.transfer.t===t,'Pause must not skip boarding');window.dispatchEvent(new KeyboardEvent('keyup',{code:'Escape',key:'Escape'}));window.dispatchEvent(new KeyboardEvent('keydown',{code:'Escape',key:'Escape'}));window.dispatchEvent(new KeyboardEvent('keyup',{code:'Escape',key:'Escape'}));check(g.G.state==='play','Resume');
-  frames(190);vehicles.push(g.P.vehicle);check(g.G.mission===mission,'Same mission across vehicles');
-  const hp=g.P.hp;g.P.hp=1;g.spawnCrate(g.P.x,'repair');frames(1);check(g.P.hp>1,'Loot after transfer');
+  frames(270);vehicles.push(g.P.vehicle);check(g.G.mission===mission,'Same mission across vehicles');
+  const hp=g.P.hp;g.P.hp=1;g.spawnCrate(g.P.x,'repair');frames(g.P.vehicle==='heli'?85:1);check(g.P.hp>1,'Loot after transfer');
  }
 }
 check(JSON.stringify(vehicles)===JSON.stringify(['tank','heli','boat']),'Must use all vehicles in one stage');check(g.G.state==='complete','Combined stage completes after ship');check(g.S.level===startLevel+1,'Campaign advances only after naval leg');g.nextLevel();check(g.P.vehicle==='tank'&&!!g.G.mission.combined,'Next stage starts combined sequence again');
