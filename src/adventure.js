@@ -1,4 +1,4 @@
-import { orbit, moveVector, wantsWave, waveSize, flightFrame } from './adventure-controls.mjs';
+import { wantsWave, waveSize, flightFrame } from './adventure-controls.mjs';
 import * as THREE from 'three';
 import { ADVENTURE as A, CHAPTERS, bridgeHeight } from './adventure-plan.mjs';
 import { buildSoldierHD, buildTankHD, buildHeliHD, buildBoatHD } from './models_hd.js';
@@ -15,19 +15,14 @@ export function createAdventure(ctx) {
   const ownGeometry = new Set(), ownMaterial = new Set();
   const chapterKills = () => G.levelKills - killBase;
   let index = 0, elapsed = 0, killBase = G.levelKills, spawnTimer = 0;
-  let heading = 0, viewOverride = null, transition = null, complete = false;
+  let heading = 0, complete = false;
   let heliRunning = false, allyTankActive = false, allyHeliActive = false, shipActive = false;
   let departingTank = false, departingHeli = false, parkedTankX = 22;
   let lastTier = ctx.stats().tier;
-  let look={yaw:0,pitch:-.18}, lastPointer=null, walkDistance=0, moveZ=0;
-  const canvas=document.getElementById('game'), oldFov=camera.fov;
-  const ray=new THREE.Ray(), hitBox=new THREE.Box3(), hitPoint=new THREE.Vector3();
+  let walkDistance=0;
+  const oldFov=camera.fov;
   const markers=document.createElement('div');markers.id='story-enemies';document.body.append(markers);
-  const reticle=document.createElement('div');reticle.id='story-reticle';reticle.innerHTML='<i></i><b></b>';document.body.append(reticle);
   const markerNodes=Array.from({length:14},()=>{const el=document.createElement('span');el.className='story-enemy';el.innerHTML='◆<small>عدو</small>';markers.append(el);return el;});
-  function releaseMouse(){if(document.pointerLockElement===canvas)document.exitPointerLock();lastPointer=null;}
-  let wasLocked=false;
-  const lockChange=()=>{const locked=document.pointerLockElement===canvas;if(wasLocked&&!locked&&G.state==='play'&&chapter().view==='rear')ctx.pause();wasLocked=locked;lastPointer=null;};document.addEventListener('pointerlockchange',lockChange);
   const camPos = camera.position.clone(), camLook = new THREE.Vector3(8, 2, 0);
   const keys = ctx.down;
   P.z = 0; P.y = ctx.ground(P.x); P.alt = 9;
@@ -40,7 +35,7 @@ export function createAdventure(ctx) {
   const heroPos = new THREE.Vector3(4, ctx.ground(4), -1.5);
   const soldiers = [], crew = [], flags = [], fuels = [];
   let allyCd = 0, airCd = 0, shipCd = 0;
-  const chapter = () => viewOverride ? {...CHAPTERS[index], view: viewOverride} : CHAPTERS[index];
+  const chapter = () => CHAPTERS[index];
   const surface = x => bridgeHeight(x, world.heightAt(x));
   world.driveHeight = surface;
 
@@ -152,14 +147,14 @@ export function createAdventure(ctx) {
     const c=chapter(), active=!!c.to;
     document.getElementById('story-chapter').textContent=`عملية الرافدين · فصل ${index+1} / ${CHAPTERS.length}`;
     document.getElementById('story-title').textContent=c.title;
-    document.getElementById('story-controls').textContent=active?(c.view==='rear'?'WASD حركة · الماوس توجيه وتصويب · كليك أيسر إطلاق · Esc تحرير الماوس وإيقاف':'A/D أو ←/→ حركة · W/S أو ↑/↓ تصويب · Space إطلاق')+(c.vehicle==='heli'?' · R/F ارتفاع وانخفاض':''):c.id==='ending'?'وصلت للمعسكر — اكتب رأيك بالتليكرام':'مشهد قصصي — تابع حركة الجندي';
+    document.getElementById('story-controls').textContent=active?'A/D أو ←/→ حركة · W/S أو ↑/↓ تصويب · كليك أيسر أو Space إطلاق'+(c.vehicle==='heli'?' · R/F ارتفاع وانخفاض':''):c.id==='ending'?'وصلت للمعسكر — اكتب رأيك بالتليكرام':'مشهد قصصي — تابع حركة الجندي';
     document.getElementById('obj').textContent=active?`${c.title} · الأعداء ${Math.min(chapterKills(),c.kills)}/${c.kills}${c.fuel!==undefined&&!fuels[c.fuel].exploded?' · صوب على الوقود وأطلق':''}`:c.title;
     document.getElementById('obj-count').textContent=`${index+1} / ${CHAPTERS.length}`;
     document.getElementById('passengers').textContent=shipActive?'السفينة العراقية تؤمن العبور':allyHeliActive?'إسناد جوي صديق':allyTankActive?'زهراء ونور — دبابة الإسناد':' '; 
   }
   function enter(next) {
-    index=next;viewOverride=null;elapsed=0;killBase=G.levelKills;spawnTimer=1;const c=chapter();
-    G.ceasefire=!c.to;G.lockInput=!c.to;G.autoDrive=false;heading=0;P.vx=0;moveZ=0;walkDistance=0;look={yaw:0,pitch:c.vehicle==='heli'?-.32:-.12};P.z=0;P.burst=[];P.aim=c.vehicle==='heli'?-.22:.08;P.vehicle=c.vehicle;P.wi=c.vehicle==='tank'?0:1;
+    index=next;elapsed=0;killBase=G.levelKills;spawnTimer=1;const c=chapter();
+    G.ceasefire=!c.to;G.lockInput=!c.to;G.autoDrive=false;heading=0;P.vx=0;walkDistance=0;P.z=0;P.burst=[];P.aim=c.vehicle==='heli'?-.22:.08;P.vehicle=c.vehicle;P.wi=c.vehicle==='tank'?0:1;
     tank.root.visible=c.vehicle==='tank';hero.root.visible=!c.to&&c.vehicle==='soldier';
     ctx.setTankUI(!!c.to);ctx.hideTraj();
     if(c.id==='intro'){tank.root.visible=true;P.x=4;heroPos.set(0,surface(0),-5);tank.root.position.set(22,surface(22),4);tank.root.rotation.set(0,0,0);}
@@ -167,7 +162,7 @@ export function createAdventure(ctx) {
     if(c.id==='false-boarding'){parkedTankX=P.x;tank.root.visible=true;heroPos.set(P.x-2,surface(P.x),2);}
     if(c.id==='infantry'){tank.root.visible=true;tank.root.position.set(parkedTankX,surface(parkedTankX),4);hero.root.visible=true;P.x=A.firstPad+16;P.y=surface(P.x);P.z=0;}
     if(c.id==='board-heli'){heroPos.set(P.x,surface(P.x),P.z);}
-    if(c.id==='heli-rear'){heliRunning=true;hero.root.visible=false;P.x=A.secondPad;P.alt=10;P.y=surface(P.x)+P.alt;}
+    if(c.id==='heli-assault'){heliRunning=true;hero.root.visible=false;P.x=A.secondPad;P.alt=10;P.y=surface(P.x)+P.alt;}
     if(c.id==='allied-boarding'){heliRunning=true;P.x=A.alliedCamp;P.y=surface(P.x)+9;}
     if(c.id==='joint-battle'){allyTankActive=true;}
     if(c.id==='return-tank'){tank.root.visible=true;tank.root.position.set(A.tankSwap+18,surface(A.tankSwap+18),3);heroPos.set(P.x,surface(P.x),-7);}
@@ -175,7 +170,6 @@ export function createAdventure(ctx) {
     if(c.id==='air-support'){departingTank=true;allyHeliActive=true;airAlly.root.visible=true;airAlly.root.position.set(P.x-40,surface(P.x)+24,-5);}
     if(c.id==='bridge'){shipActive=true;departingHeli=true;ship.root.visible=true;ship.root.position.set(A.bridgeStart+8,world.waterY-.55,-19);}
     if(c.id==='ending'){G.ceasefire=true;complete=true;P.vx=0;P.y=surface(P.x);ctx.setTankUI(false);}
-    if(c.view!=='rear')releaseMouse();
     objective();ctx.toast(c.title,'gold');
   }
   function targetAhead(max=90, useFuel=true) {
@@ -188,22 +182,8 @@ export function createAdventure(ctx) {
     if(P.vehicle==='heli')m=heli.muzzle;else if(P.vehicle==='soldier')m=hero.muzzle;else m=tank.muzzle;
     m.updateWorldMatrix(true,false);const p=m.getWorldPosition(new THREE.Vector3());
     const aim=new THREE.Vector3(Math.cos(P.aim)*P.facing,Math.sin(P.aim),0);
-    if(chapter().view==='rear') {
-      // The center reticle selects a point under the mouse-controlled camera.
-      camera.getWorldDirection(ray.direction);ray.origin.copy(camera.position);
-      let nearest=180;const point=ray.at(nearest,new THREE.Vector3());
-      for(const e of [...G.enemies.filter(e=>!e.dead),...fuels.filter(f=>!f.exploded).map(f=>({...f,kind:'fuel',h:3,w:6}))]){
-        const h=e.h||2,y=e.kind==='heli'?e.y-1.3:e.kind==='fuel'?e.y-1.5:e.y;
-        hitBox.min.set(e.x-(e.w||1)/2,y,(e.z||0)-(e.kind==='soldier'?.7:2.5));hitBox.max.set(e.x+(e.w||1)/2,y+h,(e.z||0)+(e.kind==='soldier'?.7:2.5));
-        if(ray.intersectBox(hitBox,hitPoint)){const d=hitPoint.distanceTo(ray.origin);if(d<nearest){nearest=d;point.copy(hitPoint);}}
-      }
-      const start=ray.origin.distanceTo(new THREE.Vector3(P.x,P.y,P.z||0))+2;
-      for(let d=start;d<nearest;d+=1.5){ray.at(d,hitPoint);if(hitPoint.y<surface(hitPoint.x)){point.copy(hitPoint);break;}}
-      const delta=point.sub(p),w=ctx.weapons[P.wi],t=delta.length()/(w.speed||1000);delta.y+=(w.g||0)*t*t*.5;aim.copy(delta).normalize();
-    } else {
-      const target=targetAhead(105);
-      if(target){const ty=target.fuel?target.y:target.kind==='heli'?target.y:target.y+(target.h||2)*.5;const delta=new THREE.Vector3(target.x-p.x,ty-p.y,(target.z||0)-p.z);const w=ctx.weapons[P.wi],t=delta.length()/(w.speed||1000);delta.y+=(w.g||0)*t*t*.5;aim.copy(delta).normalize();}
-    }
+    const target=targetAhead(105);
+    if(target){const ty=target.fuel?target.y:target.kind==='heli'?target.y:target.y+(target.h||2)*.5;const delta=new THREE.Vector3(target.x-p.x,ty-p.y,(target.z||0)-p.z);const w=ctx.weapons[P.wi],t=delta.length()/(w.speed||1000);delta.y+=(w.g||0)*t*t*.5;aim.copy(delta).normalize();}
     return {x:p.x,y:p.y,z:p.z,dx:aim.x,dy:aim.y,dz:aim.z};
   }
   function impact(p) {
@@ -213,7 +193,7 @@ export function createAdventure(ctx) {
       f.hp-=p.dmg;if(f.hp<=0){
         f.exploded=true;f.root.visible=false;fx.explosion(f.x,f.y,4,{debris:18,dust:world.biome.track});sfx.explosion(3);G.shake=1.5;
         for(const e of G.enemies)if(!e.dead&&Math.abs(e.x-f.x)<16)ctx.damageEnemy(e,280,1,true);
-        const from=chapter().view;viewOverride=f.id===0?'rear':'side';look={yaw:0,pitch:from==='side'?-.12:-.32};if(viewOverride==='side')releaseMouse();transition={from,to:viewOverride,t:0,duration:4};ctx.toast('انفجار الوقود — تبديل زاوية القتال','gold');
+        ctx.toast('تم تدمير مستودع الوقود — واصل التقدم','gold');
       }return true;
     }return false;
   }
@@ -260,23 +240,18 @@ export function createAdventure(ctx) {
     }
   }
   function control(dt) {
-    const c=chapter(),rear=c.view==='rear';
+    const c=chapter();
     const horizontal=(keys('KeyD','ArrowRight')?1:0)-(keys('KeyA','ArrowLeft')?1:0);
     const vertical=(keys('KeyW','ArrowUp')?1:0)-(keys('KeyS','ArrowDown')?1:0);
     const speed=c.vehicle==='soldier'?5.4:c.vehicle==='heli'?15:10.5;
     const from=index===1?22:CHAPTERS.slice(0,index).reverse().find(s=>s.to)?.to||0;
-    const motion=rear?moveVector(look.yaw,vertical,horizontal):{x:horizontal,z:0};
     const response=1-Math.exp(-dt*(c.vehicle==='soldier'?10:4));
-    P.vx=lerp(P.vx,motion.x*speed,response);moveZ=lerp(moveZ,motion.z*speed,response);
+    P.vx=lerp(P.vx,horizontal*speed,response);
     P.x=clamp(P.x+P.vx*dt,Math.max(2,from-35),c.to+(c.fuel!==undefined?20:8));
-    P.z=rear?clamp(P.z+moveZ*dt,-10,10):lerp(P.z,0,dt*3);
+    P.z=lerp(P.z,0,dt*5);
     if(Math.abs(P.vx)>.2)P.facing=Math.sign(P.vx);
-    if(rear){
-      P.aim=look.pitch;
-      const wanted=c.vehicle==='soldier'||Math.hypot(P.vx,moveZ)<.2?-look.yaw:Math.atan2(-moveZ,P.vx);
-      heading+=Math.atan2(Math.sin(wanted-heading),Math.cos(wanted-heading))*Math.min(1,dt*9);
-    }else {P.aim=clamp(P.aim+vertical*dt*.8,-.6,1.1);heading=P.facing>0?0:Math.PI;}
-    const movingSpeed=Math.hypot(P.vx,moveZ);walkDistance+=movingSpeed*dt*2.1;
+    P.aim=clamp(P.aim+vertical*dt*.8,-.6,1.1);heading=P.facing>0?0:Math.PI;
+    const movingSpeed=Math.abs(P.vx);walkDistance+=movingSpeed*dt*2.1;
     P.y=surface(P.x);
     if(c.vehicle==='heli'){
       P.alt=clamp(P.alt+((keys('KeyR')?1:0)-(keys('KeyF')?1:0))*dt*5,5,22);P.y+=P.alt;
@@ -284,7 +259,7 @@ export function createAdventure(ctx) {
     }else if(c.vehicle==='soldier'){
       hero.root.visible=true;animateHero(new THREE.Vector3(P.x,P.y,P.z),movingSpeed>.15?walkDistance:0,heading);hero.body.rotation.z=lerp(hero.body.rotation.z,-P.vx*.006,dt*7);
     }else {
-      tank.root.position.set(P.x,P.y,P.z);tank.root.rotation.set(0,0,0);tank.body.rotation.y=heading;tank.turret.rotation.y=rear?-look.yaw-heading:0;tank.setAim(P.aim);tank.spinWheels(P.vx*dt);tank.waveFlag(G.t,P.vx);
+      tank.root.position.set(P.x,P.y,P.z);tank.root.rotation.set(0,0,0);tank.body.rotation.y=heading;tank.turret.rotation.y=0;tank.setAim(P.aim);tank.spinWheels(P.vx*dt);tank.waveFlag(G.t,P.vx);
     }
     ctx.updateCombat(dt);ctx.hideTraj();
     // Pressure continues along the route even after the chapter's kill goal.
@@ -293,13 +268,13 @@ export function createAdventure(ctx) {
       spawnTimer=c.vehicle==='soldier'?3.5:3;
       for(let i=0;i<Math.min(waveSize(c.vehicle),22-alive);i++){
         const e=ctx.spawnSoldier(P.x+24+i*5+Math.random()*12,['rifleman','rpg','mg','grenadier'][(i+index)%4]);
-        e.z=(Math.random()-.5)*(rear?12:5);e.m.root.position.z=e.z;
+        e.z=(Math.random()-.5)*5;e.m.root.position.z=e.z;
       }
       if(c.vehicle!=='soldier')ctx.spawnVehicle(index===13?'heli':index>5?'tank':'jeep',P.x+60);
       else if(Math.random()<.35)ctx.spawnVehicle('jeep',P.x+58);
     }
     const done=P.x>=c.to-5&&chapterKills()>=c.kills&&(c.fuel===undefined||fuels[c.fuel].exploded);
-    if(done&&!transition)enter(index+1);
+    if(done)enter(index+1);
   }
   function friendlyFire(model,cd,dt,kind='shell',range=75) {
     cd-=dt;if(cd>0)return cd;
@@ -335,16 +310,6 @@ export function createAdventure(ctx) {
   }
   function cameraPose(view) {
     const x=P.x,y=P.y,z=P.z||0;
-    if(view==='rear'){
-      const isAir=P.vehicle==='heli',distance=isAir?26:P.vehicle==='soldier'?7.5:15;
-      const gy=surface(x),focusY=isAir?gy+3:y+(P.vehicle==='soldier'?1.5:2.2);
-      const focus=new THREE.Vector3(x,focusY,z),dir=new THREE.Vector3(Math.cos(look.yaw)*Math.cos(look.pitch),Math.sin(look.pitch),Math.sin(look.yaw)*Math.cos(look.pitch));
-      const pos=focus.clone().addScaledVector(dir,-distance);
-      if(isAir)pos.y=Math.max(pos.y,y+7);
-      pos.y=Math.max(surface(pos.x)+2,pos.y);
-      const target=focus.clone().addScaledVector(dir,isAir?32:20);
-      return {pos,look:target};
-    }
     if(view==='hero') {
       if(chapter().id==='intro'&&elapsed<5)return {pos:new THREE.Vector3(heroPos.x+.7,heroPos.y+2.6,heroPos.z-3.5),look:heroPos.clone().add(new THREE.Vector3(0,1.3,0))};
       if(chapter().id==='allied-boarding')return {pos:new THREE.Vector3(A.alliedCamp+19,surface(A.alliedCamp)+5,13),look:new THREE.Vector3(A.alliedCamp+9,surface(A.alliedCamp)+1.8,-3)};
@@ -360,26 +325,12 @@ export function createAdventure(ctx) {
     depthCombat:true,
     muzzleInfo:muzzle,
     projectileHit:impact,
-    pointerDown(ev){
-      if(ev.button!==0||G.state!=='play'||chapter().view!=='rear'||!chapter().to)return;
-      if(document.pointerLockElement!==canvas)try{const pending=canvas.requestPointerLock();pending?.catch?.(()=>{});}catch{}
-    },
-    pointerMove(ev){
-      if(G.state!=='play'||chapter().view!=='rear'||!chapter().to){lastPointer=null;return;}
-      const locked=document.pointerLockElement===canvas;
-      const dx=locked?ev.movementX:lastPointer?ev.clientX-lastPointer.x:0;
-      const dy=locked?ev.movementY:lastPointer?ev.clientY-lastPointer.y:0;
-      lastPointer={x:ev.clientX,y:ev.clientY};
-      if(Number.isFinite(dx)&&Number.isFinite(dy))look=orbit(look,dx,dy);
-    },
-    releaseMouse,
     projectileGround:(x,z)=>x>=A.bridgeStart&&x<=A.bridgeEnd&&Math.abs(z)>6.5?world.waterY:surface(x),
-    dbg:()=>({chapter:index,id:chapter().id,view:chapter().view,vehicle:P.vehicle,elapsed,kills:chapterKills(),complete,fuels:fuels.map(f=>f.exploded),allies:{tank:allyTankActive,heli:allyHeliActive,ship:shipActive},transition:!!transition,look:{...look},walkDistance,enemies:G.enemies.filter(e=>!e.dead).length}),
+    dbg:()=>({chapter:index,id:chapter().id,view:chapter().view,vehicle:P.vehicle,elapsed,kills:chapterKills(),complete,fuels:fuels.map(f=>f.exploded),allies:{tank:allyTankActive,heli:allyHeliActive,ship:shipActive},walkDistance,enemies:G.enemies.filter(e=>!e.dead).length}),
     update(dt) {
       elapsed+=dt;spawnTimer-=dt;
       const c=chapter();
       if(c.to)control(dt);else cutscene(dt);
-      if(transition){transition.t+=dt;if(transition.t>=transition.duration)transition=null;}
       if(heliRunning){heli.rotor.rotation.y+=dt*32;heli.tailRotor.rotation.z+=dt*42;}
       if(ctx.stats().tier!==lastTier){lastTier=ctx.stats().tier;tank.setTier(lastTier);}
       allies(dt);for(const f of flags)f.wave(G.t);
@@ -387,13 +338,12 @@ export function createAdventure(ctx) {
       objective();
     },
     camera(dt) {
-      const rear=chapter().view==='rear',active=G.state==='play'&&!!chapter().to;
-      reticle.hidden=!active||!rear;markers.hidden=!active;
-      if(!active)releaseMouse();
-      const desiredFov=rear?62:P.vehicle==='heli'?52:chapter().view==='hero'?42:48;
+      const active=G.state==='play'&&!!chapter().to;
+      markers.hidden=!active;
+      const desiredFov=P.vehicle==='heli'?52:chapter().view==='hero'?42:48;
       camera.fov=lerp(camera.fov,desiredFov,1-Math.exp(-dt*5));camera.updateProjectionMatrix();
       let pose=cameraPose(chapter().view);
-      if(transition){const a=cameraPose(transition.from),b=cameraPose(transition.to),t=clamp(transition.t/transition.duration,0,1),k=t*t*(3-2*t);pose={pos:a.pos.lerp(b.pos,k),look:a.look.lerp(b.look,k)};}
+
       const alpha=1-Math.exp(-dt*3);camPos.lerp(pose.pos,alpha);camLook.lerp(pose.look,alpha);
       G.shake=Math.max(0,G.shake-dt*1.7);camera.position.copy(camPos);camera.position.y+=(Math.random()-.5)*G.shake*.4;camera.lookAt(camLook);G.camX=camLook.x;G.camY=camLook.y;world.followSun(G.camX,G.camY);
       const visible=G.enemies.filter(e=>!e.dead&&Math.abs(e.x-P.x)<115).sort((a,b)=>Math.abs(a.x-P.x)-Math.abs(b.x-P.x));
@@ -405,7 +355,7 @@ export function createAdventure(ctx) {
       });
     },
     dispose() {
-      releaseMouse();document.removeEventListener('pointerlockchange',lockChange);reticle.remove();markers.remove();camera.fov=oldFov;camera.updateProjectionMatrix();tank.turret.rotation.y=0;scene.remove(group);panel.remove();ending.remove();world.driveHeight=null;P.z=0;tank.root.rotation.set(0,0,0);G.ceasefire=false;G.lockInput=false;
+      markers.remove();camera.fov=oldFov;camera.updateProjectionMatrix();tank.turret.rotation.y=0;scene.remove(group);panel.remove();ending.remove();world.driveHeight=null;P.z=0;tank.root.rotation.set(0,0,0);G.ceasefire=false;G.lockInput=false;
       for(const geo of ownGeometry)geo.dispose();for(const material of ownMaterial){material.map?.dispose();material.dispose();}
     },
   };

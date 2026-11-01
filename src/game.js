@@ -1236,9 +1236,8 @@ window.addEventListener('keydown', (ev) => {
   if (ev.code === 'F11' && window.ibra) { ev.preventDefault(); window.ibra.fullscreen(); }
 });
 window.addEventListener('keyup', (ev) => keys.delete(ev.code));
-canvas.addEventListener('mousedown', (ev) => { sfx.init(); if (ev.button === 0) { firing = true; G.special?.pointerDown?.(ev); } });
+canvas.addEventListener('mousedown', (ev) => { sfx.init(); if (ev.button === 0) { firing = true; } });
 window.addEventListener('mouseup', () => { firing = false; });
-window.addEventListener('mousemove', ev => G.special?.pointerMove?.(ev));
 canvas.addEventListener('contextmenu',ev=>{if(G.special)ev.preventDefault();});
 canvas.addEventListener('wheel', (ev) => { if (G.state === 'play') P.aim = clamp(P.aim - Math.sign(ev.deltaY) * 0.04, P.vehicle === 'heli' ? -1.25 : -0.25, 1.25); }, { passive: true });
 window.addEventListener('blur', () => { keys.clear(); firing = false; if (G.state === 'play') pause(true); });
@@ -1435,7 +1434,7 @@ function exitSpecialToMenu() {
 }
 
 function pause(p) {
-  if (p && G.state === 'play') { G.special?.releaseMouse?.(); firing = false; G.state = 'paused'; show('pause'); }
+  if (p && G.state === 'play') { firing = false; G.state = 'paused'; show('pause'); }
   else if (!p && G.state === 'paused') { G.state = 'play'; show(null); }
 }
 function nextLevel() {

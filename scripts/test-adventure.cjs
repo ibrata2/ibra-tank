@@ -9,50 +9,33 @@ const path=require('node:path');const {pathToFileURL}=require('node:url');
   await page.click('#btn-story');
   const log=await page.evaluate(()=>{
     const g=__game,log=[];const check=(c,m)=>{if(!c)throw Error(m)};
-    const frames=n=>{for(let i=0;i<n;i++){g.stepPlay(.05);g.G.special?.camera(.05);}};
+    const seenShots=new Set();const frames=n=>{for(let i=0;i<n;i++){g.stepPlay(.05);g.G.special?.camera(.05);for(const p of g.G.proj)if(p.source)seenShots.add(p.source);}};
     const dbg=()=>g.G.special.dbg();
-    function mouseControls(label){
-      const special=g.G.special,before=special.dbg().look;special.releaseMouse();
-      special.pointerMove({clientX:0,clientY:0});special.pointerMove({clientX:80,clientY:-25});frames(15);
-      check(special.dbg().look.yaw>before.yaw,'Mouse yaw '+label);check(special.dbg().look.pitch>before.pitch,'Mouse pitch '+label);
-      g.P.cd.fill(0);document.getElementById('game').dispatchEvent(new MouseEvent('mousedown',{button:0,bubbles:true}));frames(1);window.dispatchEvent(new MouseEvent('mouseup',{button:0,bubbles:true}));
-      check(g.P.cd[g.P.wi]>0,'Left click fires '+label);
-      const after=special.dbg().look;special.releaseMouse();special.pointerMove({clientX:0,clientY:0});special.pointerMove({clientX:(before.yaw-after.yaw)/.0024,clientY:(after.pitch-before.pitch)/.0024});frames(15);
-    }
-    function aimAt(x,y,z){
-      let mx=0,my=0;g.G.special.pointerMove({clientX:mx,clientY:my});
-      for(let i=0;i<18;i++){
-        frames(20);const q=new g.THREE.Vector3(x,y,z).project(g.camera),vf=g.camera.fov*Math.PI/360;
-        mx+=Math.atan(q.x*Math.tan(vf)*g.camera.aspect)/.0024;
-        my-=Math.atan(q.y*Math.tan(vf))/.0024;
-        g.G.special.pointerMove({clientX:mx,clientY:my});
-      }frames(30);
-    }
     frames(305);check(dbg().id==='tank-side','Opening must board the tank');
     // Teleport and kill-count fixtures isolate scene gates without a 15 minute run.
     // Fuel is still destroyed by a real player projectile through the combat loop.
     g.P.x=400;g.P.vx=0;g.G.levelKills+=3;g.P.wi=0;g.P.cd.fill(0);g.keys.add('Space');frames(75);g.keys.clear();
     check(dbg().fuels[0],'A shell must destroy the first fuel drums');
-    g.P.x=418;g.P.vx=0;frames(100);check(dbg().id==='tank-rear','Fuel must switch to tank rear view');
-    mouseControls('tank');
-    let x=g.P.x,z=g.P.z;g.keys.add('KeyW');frames(12);g.keys.clear();check(g.P.x>x,'W advances in rear view');
-    g.keys.add('KeyD');frames(12);g.keys.clear();check(g.P.z>z,'D strafes in rear view');
-    // Reaching the kill goal must not empty the remainder of the route.
-    for(const e of g.G.enemies)g.scene.remove(e.m.root);g.G.enemies=[];g.G.levelKills+=100;frames(90);check(g.G.enemies.some(e=>!e.dead),'Waves continue after kill goal');
-    const stages=[['tank-rear',920,6],['false-boarding',null,0],['infantry',1440,10],['board-heli',null,0],['heli-rear',2100,8],['heli-side',2780,8],['allied-boarding',null,0],['joint-battle',3340,12],['return-tank',null,0],['tank-support',3700,8],['air-support',4000,8],['bridge',4700,14],['camp',5120,10]];
+    g.P.x=418;g.P.vx=0;frames(100);check(dbg().id==='tank-advance','Tank combat stays side-on after fuel');
+    check(dbg().view==='side','Fuel must preserve the side camera');
+    check(!g.G.special.pointerMove&&!g.G.special.pointerDown,'Mouse orbit and pointer lock must be removed');
+    let x=g.P.x;g.keys.add('KeyD');frames(12);g.keys.clear();check(g.P.x>x,'D moves right');
+    const y=g.P.x;g.keys.add('KeyW');frames(1);g.keys.clear();check(Math.abs(g.P.x-y)<1,'W adjusts aim rather than walking forward');
+    const stages=[['tank-advance',920,6],['false-boarding',null,0],['infantry',1440,10],['board-heli',null,0],['heli-assault',2100,8],['heli-side',2780,8],['allied-boarding',null,0],['joint-battle',3340,12],['return-tank',null,0],['tank-support',3700,8],['air-support',4000,8],['bridge',4700,14],['camp',5120,10]];
     for(const [id,to,kills] of stages){
+      check(dbg().view==='side'||!to,'Every combat chapter must use the side camera');
       check(dbg().id===id,'Expected '+id+' got '+dbg().id);log.push(id);
       if(!to){frames(id==='return-tank'?290:260);continue;}
-      if(id==='infantry'){mouseControls('soldier');
+      if(id==='infantry'){
         g.P.wi=1;g.P.cd.fill(0);g.keys.add('Space');frames(1);g.keys.clear();check(g.P.cd[1]>0,'Infantry must fire shared weapon');
       }
-      if(id==='heli-rear'){mouseControls('helicopter');
-        g.P.x=2080;g.P.vx=0;g.P.wi=0;g.P.cd.fill(0);frames(30);aimAt(2101.3,g.ground(2100)+1,0);g.keys.add('Space');frames(90);g.keys.clear();check(dbg().fuels[1],'Helicopter shot must destroy second fuel');frames(85);
+      if(id==='heli-assault'){
+        g.P.x=2080;g.P.vx=0;g.P.wi=0;g.P.cd.fill(0);g.keys.add('Space');frames(90);g.keys.clear();check(dbg().fuels[1],'Helicopter shot must destroy second fuel');frames(85);
       }
-      if(id==='joint-battle'){check(dbg().allies.tank,'Allied crew tank must join');const e=g.spawnSoldier(g.P.x+35,'rifleman');frames(70);check(e.hp<e.max||g.G.proj.some(p=>p.source==='ally-tank'),'Allied tank must fire in battle');}
-      if(id==='air-support'){check(dbg().allies.heli,'Air support must join');g.spawnSoldier(g.P.x+35,'rifleman');frames(20);check(g.G.proj.some(p=>p.source==='ally-heli'),'Allied helicopter must fire');}
+      if(id==='joint-battle'){check(dbg().allies.tank,'Allied crew tank must join');const e=g.spawnSoldier(g.P.x+35,'rifleman');frames(70);check(e.hp<e.max||seenShots.has('ally-tank'),'Allied tank must fire in battle');}
+      if(id==='air-support'){check(dbg().allies.heli,'Air support must join');g.spawnSoldier(g.P.x+35,'rifleman');frames(20);check(seenShots.has('ally-heli'),'Allied helicopter must fire');}
       if(id==='bridge'){
-        check(dbg().allies.ship,'Naval support must join');g.P.x=4350;frames(5);check(Math.abs(g.P.y-2.4)<.01,'Tank must drive on bridge deck, not riverbed');g.spawnSoldier(g.P.x+32,'rifleman');frames(50);check(g.G.proj.some(p=>p.source==='ally-ship'),'Ship must shoot from below the bridge');
+        check(dbg().allies.ship,'Naval support must join');g.P.x=4350;frames(5);check(Math.abs(g.P.y-2.4)<.01,'Tank must drive on bridge deck, not riverbed');g.spawnSoldier(g.P.x+32,'rifleman');frames(50);check(seenShots.has('ally-ship'),'Ship must shoot from below the bridge');
       }
       g.G.levelKills+=kills;g.P.x=to-2;g.P.vx=0;frames(2);
     }
@@ -60,7 +43,7 @@ const path=require('node:path');const {pathToFileURL}=require('node:url');
     log.push('ending');return log;
   });
   if(process.env.STORY_SCREENSHOT)await page.screenshot({path:process.env.STORY_SCREENSHOT});
-  assert.deepEqual(errors,[]);console.log('Story chapters, fuel impacts, rear controls, infantry firing, allies, bridge and ending passed:',log.join(' → '));
+  assert.deepEqual(errors,[]);console.log('Story chapters, fuel impacts, side controls, infantry firing, allies, bridge and ending passed:',log.join(' → '));
   await page.click('#story-return');await page.waitForFunction(()=>!__game.G.special);assert.equal(await page.locator('#adventure-story').count(),0);assert.equal(await page.evaluate(()=>__game.world.driveHeight),null);
   await page.click('#btn-story');await page.waitForFunction(()=>__game.G.special?.dbg().id==='intro');
   await browser.close();
