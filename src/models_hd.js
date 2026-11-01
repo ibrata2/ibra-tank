@@ -560,7 +560,7 @@ export function buildTankHD(scheme = 'player', seed = 3) {
 
 // ============================================================ HELICOPTER (Black Hawk style)
 export function buildHeliHD(scheme = 'desert', idx = 0) {
-  const cols = { desert: ['#a99470', ['#8a7756', '#bfae88']], enemyGreen: ['#3e4433', ['#2e3326', '#4f5640']], enemyGrey: ['#3c3f42', ['#2c2f31', '#55595c']], green: ['#4a5340', null], stealth: ['#5b5f62', null] };
+  const cols = { player: ['#546044', ['#34422f', '#8a8b67']], desert: ['#a99470', ['#8a7756', '#bfae88']], enemyGreen: ['#3e4433', ['#2e3326', '#4f5640']], enemyGrey: ['#3c3f42', ['#2c2f31', '#55595c']], green: ['#4a5340', null], stealth: ['#5b5f62', null] };
   const c = cols[scheme] || cols.desert;
   const paint = paintMat('heli' + scheme, c[0], 51, { camo: c[1], rep: 0.25, metal: 0.35, rough: 0.6 });
   const dark = darkM(), steel = steelM(), rubber = rubberM();
@@ -619,6 +619,18 @@ export function buildHeliHD(scheme = 'desert', idx = 0) {
   if (fam >= 3 || sub >= 4) { M(SPH(0.32, 14, 10), glassM(), 4.0, -0.75, 0, ups); M(RB(0.4, 0.2, 0.4, 0.05), dark, 3.9, -0.55, 0, ups); } // FLIR turret
   if (fam >= 4) { const d = buildDrone(1.0); d.position.set(1.5, 4.2, 2.2); ups.add(d); const d2 = buildDrone(1.0); d2.position.set(-2.5, 4.0, -2.2); ups.add(d2); ups.userData.drones = [d, d2]; }
   const muzzle = new THREE.Object3D(); muzzle.position.set(2.4, 0.35, 0); body.add(muzzle);
+  if (scheme === 'player') {
+    const insignia = mat('heliIraq', () => new THREE.MeshStandardMaterial({ map: iraqFlagTexture(), roughness: 0.7, side: THREE.DoubleSide }));
+    for (const z of [-1, 1]) {
+      M(new THREE.PlaneGeometry(1.1, 0.72), insignia, -1.6, 0.35, z * 1.04, body);
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), new THREE.MeshBasicMaterial({ color: z > 0 ? '#ff3344' : '#44ff88' }));
+      lamp.position.set(0.1, 1, z * 2.3); body.add(lamp);
+    }
+    // Reinforced cabin panels make the progression visible below each new family.
+    for (let i = 0; i < Math.min(5, sub + 1); i++) {
+      for (const z of [-1, 1]) M(RB(0.42, 0.48, 0.09, 0.03), dark, -2 + i * 0.48, -0.35, z * 1.05, ups);
+    }
+  }
   disc.userData.keep = true;
   shadowAll(root); disc.castShadow = false;
   bake(root);

@@ -141,6 +141,7 @@ export class World {
   build(level, length, seed, override = null) {
     this.clear();
     const { biome, time, region } = override || levelEnv(level);
+    this.sea = !!override?.sea;
     this.cross = override && override.cross || null;
     this.flatZones = override && override.flatZones || null;
     this.biome = biome; this.time = time; this.length = length; this.region = region;
@@ -223,9 +224,17 @@ export class World {
     if (this.cross) {
       const [a, b] = this.cross;
       const wm2 = new THREE.MeshPhongMaterial({ color: time.night ? '#1a2a40' : '#3f6f86', specular: '#ffffff', shininess: 90, transparent: true, opacity: 0.9 });
-      const wg = new THREE.PlaneGeometry(b - a + 16, 172); wg.rotateX(-Math.PI / 2);
+      const wg = new THREE.PlaneGeometry(b - a + 16, 172, Math.min(260, Math.ceil((b - a) / 4)), 32); wg.rotateX(-Math.PI / 2);
       const water = new THREE.Mesh(wg, wm2); water.position.set((a + b) / 2, this.waterY, -64); water.receiveShadow = true; this.group.add(water);
       this.waterMat = wm2;
+      const points = wg.attributes.position;
+      this.animated.push(t => {
+        for (let i = 0; i < points.count; i++) {
+          const x = points.getX(i), z = points.getZ(i);
+          points.setY(i, Math.sin(x * 0.16 + t * 1.7) * 0.09 + Math.sin(z * 0.35 + x * 0.08 - t) * 0.055);
+        }
+        points.needsUpdate = true; wg.computeVertexNormals();
+      });
     }
 
     // --- props
@@ -236,6 +245,7 @@ export class World {
     const pick = () => { let v = r() * total; for (const [k, w] of weights) { v -= w; if (v <= 0) return k; } return weights[0][0]; };
     const isWet = (x, z) => (this.water || this.cross) && this.groundY(x, z) < this.waterY + 0.6;
     const add = (obj, x, z, yOff = 0) => {
+      if (this.sea && Math.abs(z) < 12) { obj.visible = false; }
       if (!obj.userData.noBake) bake(obj);
       obj.position.set(x, this.groundY(x, z) - 0.05 + yOff, z);
       this.group.add(obj);

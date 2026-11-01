@@ -1,3 +1,4 @@
+import { MODES, MODE_NAMES, vehicleFor, resolveSecret } from './campaign.mjs';
 import * as THREE from 'three';
 import { World, levelEnv, BIOMES, TIMES } from './world.js';
 import { createSpecial, SP, SPECIAL_REGION, SPECIAL_FLATS, buildGunboat, buildShip } from './special.js';
@@ -51,10 +52,11 @@ const WEAPONS = [
 ];
 
 const SAVE_KEY = 'ibra-tank-save-v1';
-const defaultSave = () => ({ level: 1, plv: 1, xp: 0, unlocked: [true, true, false, false, false, false], ammo: WEAPONS.map(w => w.ammo === Infinity ? -1 : 0), kills: 0, volume: 0.7, quality: 'high' });
+const defaultSave = () => ({ level: 1, plv: 1, xp: 0, unlocked: [true, true, false, false, false, false], ammo: WEAPONS.map(w => w.ammo === Infinity ? -1 : 0), kills: 0, volume: 0.7, quality: 'high', mode: 'tank' });
 let S = defaultSave();
 try { const raw = localStorage.getItem(SAVE_KEY); if (raw) S = { ...S, ...JSON.parse(raw) }; } catch (e) { /* ignore */ }
 const save = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { /* ignore */ } };
+if (!MODES.includes(S.mode)) S.mode = 'tank';
 sfx.setVolume(S.volume);
 
 const xpNeed = (l) => Math.round(70 * Math.pow(l, 1.25));
@@ -77,6 +79,24 @@ headL.castShadow = false;
 
 const P = { vehicle: 'tank', x: 8, y: 0, vx: 0, facing: 1, aim: 0.1, hp: 320, hitT: 99, disabled: 0, cd: WEAPONS.map(() => 0), wi: 0, burst: [], recoil: 0, slope: 0, passengers: [], dustT: 0 };
 
+// All campaigns use the same combat, loot and progression systems.
+let flight = null, vessel = null, secretStage = null;
+const vehicleName = () => MODE_NAMES[P.vehicle] || MODE_NAMES.tank;
+function refreshVehicle() {
+  const riders = G?.friends?.filter(f => f.state === 'ride') || [];
+  if (flight) scene.remove(flight.root);
+  if (vessel) scene.remove(vessel.root);
+  flight = vessel = null;
+  tank.root.visible = P.vehicle === 'tank';
+  if (P.vehicle === 'heli') { flight = buildHeliHD('player', stats().tier); scene.add(flight.root); flight.root.position.set(P.x, ground(P.x) + (P.alt || 7), 0); }
+  if (P.vehicle === 'boat') {
+    vessel = buildBoatHD(['patrol', 'gunboat', 'stealth', 'catamaran', 'frigate'][Math.min(4, Math.floor(stats().tier / 5))]);
+    scene.add(vessel.root); vessel.root.position.set(P.x, world.waterY - 0.55, 0);
+  }
+  const body = flight?.body || vessel?.body || tank.body;
+  for (const f of riders) body.add(f.m.root);
+}
+const lootHeight = x => P.vehicle === 'boat' ? world.waterY + 0.1 : ground(x);
 // trajectory preview
 const TRAJ_N = 48;
 const trajGeo = new THREE.BufferGeometry();
@@ -106,10 +126,11 @@ function soldierTypeFor(L, r) {
 }
 
 const RANGE = { rifleman: [11, 21], mg: [13, 23], rpg: [14, 25], grenadier: [8, 14], sniper: [23, 31], officer: [12, 20], heavy: [9, 17] };
-const levelMul = () => 1 + 0.09 * (S.level - 1);
+const levelMul = () => 1 + 0.09 * ((G.mission?.L || S.level) - 1);
 
 let seedCounter = 1;
 function spawnSoldier(x, type, fromBehind = false) {
+  if (P.vehicle === 'boat') return spawnVehicle('gunboat', x);
   const biome = world.biome;
   const m = buildSoldier(type, biome.uniform, seedCounter++);
   scene.add(m.root);
@@ -126,6 +147,7 @@ function spawnSoldier(x, type, fromBehind = false) {
 }
 
 function spawnVehicle(kind, x) {
+  if (P.vehicle === 'boat' && !['heli', 'ship', 'gunboat'].includes(kind)) kind = kind === 'tank' || kind === 'apc' ? 'ship' : 'gunboat';
   const b = world.biome;
   let m, e;
   const base = { kind, x, y: ground(x), facing: -1, cd: 2 + Math.random() * 2, burst: 0, dead: false, vx: 0, z: 0, wheelSpin: 0 };
@@ -185,7 +207,7 @@ function killEnemy(e, kx, explosive) {
     }
     if (e.kind === 'heli') { e.vy = 0; e.falling = true; }
     const r = Math.random();
-    if (!(world.inRiver && world.inRiver(e.x))) spawnCrate(e.x, r < 0.35 ? 'parts' : r < 0.65 ? 'ammo' : 'repair');
+    spawnCrate(e.x, r < 0.25 ? 'weapon' : r < 0.5 ? 'parts' : r < 0.75 ? 'ammo' : 'repair');
     if (e.kind === 'gunboat' || e.kind === 'ship') e.sinking = true;
   }
   if (G.mission) G.mission.onKill(e);
@@ -238,6 +260,11 @@ function playerFire() {
 
 const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3();
 function muzzleInfo() {
+  const model = P.vehicle === 'heli' ? flight : P.vehicle === 'boat' ? vessel : null;
+  if (model) {
+    model.root.updateMatrixWorld(true); model.muzzle.getWorldPosition(_v1);
+    return { x: _v1.x, y: _v1.y, dx: Math.cos(P.aim) * P.facing, dy: Math.sin(P.aim) };
+  }
   tank.root.updateMatrixWorld(true);
   tank.muzzle.getWorldPosition(_v1);
   tank.breech.getWorldPosition(_v2);
@@ -357,7 +384,7 @@ function updateProjectiles(dt) {
       remove(i); continue;
     }
     let done = false;
-    const gy = ground(p.x);
+    const gy = P.vehicle === 'boat' ? world.waterY : ground(p.x);
     if (p.owner === 'player') {
       for (const e of G.enemies) {
         if (e.dead) continue;
@@ -412,8 +439,10 @@ function addXP(n) {
     const prevFam = Math.floor(tank.tier / 5);
     P.hp = st.maxHp;
     tank.setTier(st.tier);
+    if (P.vehicle !== 'tank' && !G.special) refreshVehicle();
     sfx.levelUp();
-    if (Math.floor(st.tier / 5) > prevFam) toast(`دبابة جديدة! ${TANK_FAMILIES[Math.floor(st.tier / 5)].name} — مستوى ${S.plv}`, 'gold');
+    if (P.vehicle !== 'tank') toast(`تطورت ${vehicleName()} — مستوى ${S.plv} · درع وتسليح أقوى`, 'gold');
+    else if (Math.floor(st.tier / 5) > prevFam) toast(`دبابة جديدة! ${TANK_FAMILIES[Math.floor(st.tier / 5)].name} — مستوى ${S.plv}`, 'gold');
     else if (st.tier < 25) toast(`تطوّرت الدبابة إلى مستوى ${S.plv} — تجهيزات جديدة على الدبابة`, 'gold');
     else toast(`تطوّرت الدبابة إلى مستوى ${S.plv} — ضرر +9٪ ودرع أقوى`, 'gold');
     for (let i = 0; i < 24; i++) fx.spawn({ tex: 'spark', x: P.x + (Math.random() - 0.5) * 7, y: P.y + Math.random() * 3, vy: 3 + Math.random() * 4, life: 1, size0: 0.6, size1: 0.1, color: '#ffd76a' });
@@ -426,7 +455,7 @@ function spawnCrate(x, kind) {
   const c = buildCrate(kind);
   c.root.position.set(x, ground(x), 0);
   scene.add(c.root);
-  G.crates.push({ x, kind, c, t: Math.random() * 6, vy: 0, y: ground(x) + 3 });
+  G.crates.push({ x, kind, c, t: Math.random() * 6, vy: 0, y: lootHeight(x) + 3 });
 }
 
 function collectCrate(cr) {
@@ -470,7 +499,7 @@ function boardFriend(f) {
   const used = new Set(G.friends.filter(o => o.state === 'ride' && o !== f).map(o => o.seat));
   f.seat = SEATS.findIndex((_, i) => !used.has(i));
   if (f.seat < 0) f.seat = 0;
-  tank.body.add(f.m.root);
+  (P.vehicle === 'heli' ? flight.body : P.vehicle === 'boat' ? vessel.body : tank.body).add(f.m.root);
   const s = SEATS[f.seat];
   f.m.root.position.set(s[0], s[1], s[2]);
   f.m.root.rotation.set(0, 0, 0);
@@ -547,6 +576,11 @@ class Mission {
       kinds = [];
       for (let i = 0; i < n; i++) kinds.push(pool[Math.floor(r() * pool.length)]);
     }
+    if (P.vehicle !== 'tank') {
+      const operations = ['assault', 'convoy', 'defend'];
+      kinds = [operations[(L - 1) % 3], operations[L % 3]];
+      if (L >= 14) kinds.push(operations[(L + 1) % 3]);
+    }
     this.kinds = kinds;
     const seg = (length - 40) / kinds.length;
     kinds.forEach((k, i) => this.build(k, 30 + i * seg, 30 + (i + 1) * seg));
@@ -591,19 +625,19 @@ class Mission {
       if (o.type === 'pickup' && !o.f.obj) o.f.obj = spawnFriend(o.f.x);
       if (o.type === 'deliver') {
         o.flag = buildFlag('#2e7d32', '✚', 6);
-        o.flag.root.position.set(o.x, ground(o.x), -1.2);
+        o.flag.root.position.set(o.x, lootHeight(o.x), -1.2);
         scene.add(o.flag.root); G.flags.push(o.flag); o.flag.root.visible = false;
       }
       if (o.type === 'defend') {
         o.flag = buildFlag('#ce1126', '', 7, { tex: iraqFlagTexture() });
-        o.flag.root.position.set(o.x, ground(o.x), -1.5);
+        o.flag.root.position.set(o.x, lootHeight(o.x), -1.5);
         scene.add(o.flag.root); G.flags.push(o.flag);
         const sb = buildProp('sandbags', Math.random, world.biome); sb.position.set(o.x - 6, ground(o.x - 6), -2.5); scene.add(sb); G.extra.push(sb);
         const sb2 = buildProp('sandbags', Math.random, world.biome); sb2.position.set(o.x + 4, ground(o.x + 4), -2.5); scene.add(sb2); G.extra.push(sb2);
       }
     }
     const end = buildFlag('#c9a84c', '', 8, { tex: iraqFlagTexture() });
-    end.root.position.set(this.length, ground(this.length), -1.5);
+    end.root.position.set(this.length, lootHeight(this.length), -1.5);
     scene.add(end.root); G.flags.push(end); this.endFlag = end;
     this.begin();
   }
@@ -712,17 +746,24 @@ function clearLevel() {
 
 function buildLevel(L) {
   clearLevel();
+  P.vehicle = vehicleFor(secretStage ? secretStage.mode : S.mode, L);
   const mission = new Mission(L);
   G.length = mission.length;
-  world.build(L, mission.length, L * 131 + 7);
-  const { biome, time, region } = levelEnv(L);
+  let { biome, time, region } = levelEnv(L);
+  if (secretStage) {
+    biome = BIOMES[secretStage.biome]; time = TIMES[secretStage.time];
+    region = { ...region, name: secretStage.name, base: secretStage.biome, time: secretStage.time, features: [] };
+  }
+  const override = { biome, time, region, ...(P.vehicle === 'boat' ? { cross: [-200, mission.length + 200], sea: true } : {}) };
+  world.build(L, mission.length, L * 131 + 7 + (secretStage ? 9001 : 0), override);
+  refreshVehicle();
   G.region = region;
   G.biome = biome; G.time = time;
   renderer.toneMappingExposure = time.exposure;
   headL.intensity = time.night ? 160 : 0;
   // player
   const st = stats();
-  P.x = 8; P.vx = 0; P.facing = 1; P.hp = st.maxHp; P.disabled = 0; P.burst = []; P.aim = 0.08;
+  P.x = 8; P.vx = 0; P.facing = 1; P.hp = st.maxHp; P.disabled = 0; P.burst = []; P.aim = P.vehicle === 'heli' ? -0.18 : 0.08; P.alt = 7; P.cd.fill(0);
   tank.setTier(st.tier);
   tank.root.position.set(P.x, ground(P.x), 0);
   if (!S.unlocked[P.wi]) P.wi = 0;
@@ -754,6 +795,7 @@ function buildLevel(L) {
   });
   for (let x = 60; x < mission.length; x += 70 + r() * 60) spawnCrate(x, ['ammo', 'repair', 'parts'][Math.floor(r() * 3)]);
   hud.setLevel(L, region, time);
+  toast(`${vehicleName()} · اجمع الصحة والأسلحة وقطع التطوير بالمرور عليها`, 'blue');
 }
 
 function levelComplete() {
@@ -762,7 +804,7 @@ function levelComplete() {
   const bonus = 100 + S.level * 25;
   addXP(bonus);
   const prev = S.level;
-  S.level++;
+  if (!secretStage) S.level++;
   save();
   $('cmp-title').textContent = `تحرّرت ${G.region ? G.region.name : 'المنطقة'}!`;
   $('cmp-sub').textContent = `المرحلة ${prev} · محافظة ${G.region ? G.region.gov : ''} — عاش العراق`;
@@ -774,6 +816,8 @@ function levelComplete() {
     <div><span>مستوى الدبابة</span><b>${S.plv}</b></div>`;
   const next = levelEnv(S.level);
   $('cmp-next').textContent = `المرحلة ${S.level}: ${next.region.name} (محافظة ${next.region.gov}) — ${next.time.name}`;
+  if (secretStage) { $('cmp-title').textContent = `اكتملت: ${secretStage.name}`; $('cmp-next').textContent = 'تم حفظ ترقياتك. ارجع للحملة أو أدخل رقم مرحلة سرية أخرى.'; }
+  $('btn-next').textContent = secretStage ? 'العودة إلى الحملة' : 'المرحلة التالية ⟵';
   show('complete');
 }
 
@@ -783,7 +827,7 @@ function updateEnemies(dt) {
   // planned spawns
   for (let i = G.spawns.length - 1; i >= 0; i--) {
     const s = G.spawns[i];
-    if (P.x > s.x - 46 && alive < 14 + S.level && !G.ceasefire) {
+    if (P.x > s.x - 46 && alive < Math.min(36, 14 + S.level) && !G.ceasefire) {
       const x = Math.max(s.x, P.x + 27);
       if (s.vehicle) spawnVehicle(s.vehicle, x + 6);
       else s.soldiers.forEach((t, k) => spawnSoldier(x + k * 2.2 + Math.random(), t));
@@ -791,7 +835,7 @@ function updateEnemies(dt) {
     }
   }
   // reinforcements from behind
-  if (!G.special && S.level >= 4 && alive < 6 + S.level * 0.5) {
+  if (!G.special && S.level >= 4 && alive < Math.min(24, 6 + S.level * 0.5)) {
     G.reinforceT -= dt;
     if (G.reinforceT <= 0) {
       G.reinforceT = Math.max(12, 30 - S.level);
@@ -1079,7 +1123,7 @@ const hud = {
     $('hp-fill').style.width = (P.hp / st.maxHp * 100).toFixed(1) + '%';
     $('hp-txt').textContent = P.disabled > 0 ? 'إصلاح…' : `${Math.ceil(P.hp)} / ${st.maxHp}`;
     $('xp-fill').style.width = (S.xp / xpNeed(S.plv) * 100).toFixed(1) + '%';
-    $('xp-txt').textContent = `مستوى الدبابة ${S.plv} · ${S.xp}/${xpNeed(S.plv)} XP`;
+    $('xp-txt').textContent = `مستوى ${vehicleName()} ${S.plv} · ${S.xp}/${xpNeed(S.plv)} XP`;
     $('kills').textContent = `☠ ${G.levelKills}`;
     $('aim').textContent = `زاوية المدفع ${Math.round(P.aim * 180 / Math.PI)}°`;
     $('spd').textContent = `${Math.round(Math.abs(P.vx) * 3.6)} كم/س`;
@@ -1156,6 +1200,7 @@ window.addEventListener('keydown', (ev) => {
   sfx.init();
   const k = ev.key.toLowerCase();
   if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) ev.preventDefault();
+  if (ev.target.matches('input, select, textarea')) return;
   keys.add(ev.code);
   if (G.state === 'play') {
     if (/^Digit[1-6]$/.test(ev.code) || /^Numpad[1-6]$/.test(ev.code)) selectWeapon(parseInt(ev.code.slice(-1), 10) - 1);
@@ -1170,7 +1215,7 @@ window.addEventListener('keydown', (ev) => {
 window.addEventListener('keyup', (ev) => keys.delete(ev.code));
 canvas.addEventListener('mousedown', (ev) => { sfx.init(); if (ev.button === 0) firing = true; });
 window.addEventListener('mouseup', () => { firing = false; });
-canvas.addEventListener('wheel', (ev) => { if (G.state === 'play') P.aim = clamp(P.aim - Math.sign(ev.deltaY) * 0.04, -0.25, 1.25); }, { passive: true });
+canvas.addEventListener('wheel', (ev) => { if (G.state === 'play') P.aim = clamp(P.aim - Math.sign(ev.deltaY) * 0.04, P.vehicle === 'heli' ? -1.25 : -0.25, 1.25); }, { passive: true });
 window.addEventListener('blur', () => { keys.clear(); firing = false; if (G.state === 'play') pause(true); });
 const down = (...codes) => codes.some(c => keys.has(c));
 
@@ -1186,18 +1231,33 @@ function updatePlayer(dt) {
     if (P.disabled <= 0) { P.hp = st.maxHp * 0.75; toast('اكتمل الإصلاح — عدنا للقتال!', 'ok'); }
   }
   if (input !== 0) P.facing = input;
-  const slope = slopeAt(P.x);
-  const target = input * st.speed * (1 - Math.sin(slope) * input * 0.6);
+  const slope = P.vehicle === 'tank' ? slopeAt(P.x) : 0;
+  const target = input * st.speed * (P.vehicle === 'heli' ? 1.65 : P.vehicle === 'boat' ? 1.2 : 1) * (1 - Math.sin(slope) * input * 0.6);
   P.vx = lerp(P.vx, target, dt * (input ? 2.2 : 3.5));
   const xMin = G.xMin ?? 2, xMax = G.xMax ?? G.length + 25;
   P.x = clamp(P.x + P.vx * dt, xMin, xMax);
   if (P.x <= xMin || P.x >= xMax) P.vx = 0;
-  P.y = ground(P.x);
+  if (P.vehicle === 'heli' && flight) {
+    if (down('KeyR') && P.disabled <= 0) P.alt += dt * 5;
+    if (down('KeyF') && P.disabled <= 0) P.alt -= dt * 5;
+    P.alt = clamp(P.alt || 7, 2, 19);
+    P.y = ground(P.x) + P.alt;
+    flight.root.position.set(P.x, P.y, 0); flight.body.rotation.y = P.facing > 0 ? 0 : Math.PI;
+    flight.root.rotation.z = -P.vx * 0.008;
+    flight.rotor.rotation.y += dt * 34; flight.tailRotor.rotation.z += dt * 45;
+  } else if (P.vehicle === 'boat' && vessel) {
+    P.y = world.waterY - 0.55 + Math.sin(G.t * 2) * 0.08;
+    vessel.root.position.set(P.x, P.y, 0); vessel.body.rotation.y = P.facing > 0 ? 0 : Math.PI;
+    vessel.root.rotation.z = Math.sin(G.t * 1.4) * 0.025;
+    vessel.gunPivot.rotation.z = P.aim;
+    if (vessel.root.userData.radar) vessel.root.userData.radar.rotation.y += dt * 3;
+    if (Math.abs(P.vx) > 1 && Math.random() < dt * 16) fx.dustPuff(P.x - P.facing * vessel.w / 2, world.waterY, '#daefff', 1, -P.vx * 0.3);
+  } else P.y = ground(P.x);
   P.slope = lerp(P.slope, slope, dt * 8);
   // barrel
   if (P.disabled <= 0) {
     if (up && !G.lockInput) P.aim = Math.min(1.25, P.aim + dt * 0.9);
-    if (dn && !G.lockInput) P.aim = Math.max(-0.25, P.aim - dt * 0.9);
+    if (dn && !G.lockInput) P.aim = Math.max(P.vehicle === 'heli' ? -1.25 : -0.25, P.aim - dt * 0.9);
   }
   // recoil
   P.recoil = Math.max(0, P.recoil - dt * 4);
@@ -1212,7 +1272,7 @@ function updatePlayer(dt) {
   tank.treadMap.offset.y -= P.vx * P.facing * dt * 0.17;
   // dust & exhaust
   P.dustT -= dt;
-  if (P.dustT <= 0) {
+  if (P.dustT <= 0 && P.vehicle === 'tank') {
     P.dustT = 0.05;
     if (Math.abs(P.vx) > 1.2) fx.dustPuff(P.x - P.facing * 3.2, P.y, world.biome.track, 1.2, -P.vx * 0.3);
     if (Math.random() < 0.4) fx.spawn({ tex: 'smoke', additive: false, x: P.x - P.facing * 3.9, y: P.y + 1.5, z: -0.6, vx: -P.facing * 1.5, vy: 1, life: 1.2, size0: 0.3, size1: 1.6, alpha: 0.3 + Math.min(0.3, Math.abs(P.vx) * 0.05), color: '#555' });
@@ -1228,7 +1288,8 @@ function updatePlayer(dt) {
   for (let i = G.crates.length - 1; i >= 0; i--) {
     const c = G.crates[i];
     c.t += dt;
-    const gy = ground(c.x);
+    const gy = lootHeight(c.x);
+    if (P.vehicle === 'heli' && Math.abs(c.x - P.x) < 7) c.y = lerp(c.y, P.y, Math.min(1, dt * 8));
     if (c.y > gy) { c.vy -= 18 * dt; c.y = Math.max(gy, c.y + c.vy * dt); }
     c.c.root.position.set(c.x, c.y, 0);
     c.c.box.position.y = 0.6 + Math.sin(c.t * 3) * 0.12;
@@ -1280,13 +1341,14 @@ function updateCamera(dt, t) {
 
 // ============================================================ UI SCREENS
 function show(id) {
-  for (const s of ['menu', 'pause', 'complete', 'help', 'settings']) $(s).classList.toggle('show', s === id);
+  for (const s of ['menu', 'pause', 'complete', 'help', 'settings', 'codes']) $(s).classList.toggle('show', s === id);
   $('hud').classList.toggle('show', id === null || id === 'pause' || id === 'complete');
   document.body.classList.toggle('playing', id === null);
 }
 function startGame() {
   sfx.init();
   endSpecial();
+  secretStage = null;
   buildLevel(S.level);
   G.state = 'play';
   show(null);
@@ -1353,28 +1415,38 @@ function pause(p) {
 }
 function nextLevel() {
   if (G.state !== 'complete') return;
+  secretStage = null;
   buildLevel(S.level);
   G.state = 'play';
   show(null);
 }
 function refreshMenu() {
   $('btn-play').textContent = S.level > 1 ? `متابعة — المرحلة ${S.level}` : 'ابدأ اللعب';
-  $('menu-info').textContent = S.level > 1 ? `مستوى الدبابة ${S.plv} · الأسلحة المفتوحة ${S.unlocked.filter(Boolean).length}/6 · مجموع القتلى ${S.kills}` : '';
-  $('btn-new').style.display = S.level > 1 ? '' : 'none';
+  $('menu-info').textContent = S.level > 1 ? `مستوى ${vehicleName()} ${S.plv} · الأسلحة المفتوحة ${S.unlocked.filter(Boolean).length}/6 · مجموع القتلى ${S.kills}` : '';
+  $('btn-new').style.display = '';
+  $('mode').value = S.mode;
 }
 $('btn-play').onclick = () => { sfx.click(); startGame(); };
 $('btn-new').onclick = () => {
   if (!confirm('بدء لعبة جديدة؟ سيتم حذف التقدّم الحالي.')) return;
+  const selectedMode = $('mode').value;
   const v = S.volume, q = S.quality; S = defaultSave(); S.volume = v; S.quality = q; save();
-  tank.setTier(0); refreshMenu(); buildLevel(1); sfx.click();
+  S.mode = selectedMode; save(); secretStage = null; tank.setTier(0); refreshMenu(); startGame(); sfx.click();
 };
 $('btn-help').onclick = () => { sfx.click(); show('help'); };
 $('btn-settings').onclick = () => { sfx.click(); show('settings'); };
 $('btn-exit').onclick = () => { if (window.ibra) window.ibra.quit(); else window.close(); };
 document.querySelectorAll('[data-back]').forEach(b => b.onclick = () => { sfx.click(); show(G.state === 'paused' ? 'pause' : 'menu'); });
 $('btn-resume').onclick = () => pause(false);
-$('btn-menu').onclick = () => { if (G.special) { exitSpecialToMenu(); return; } G.state = 'menu'; save(); refreshMenu(); show('menu'); };
-$('btn-special').onclick = () => { sfx.click(); startSpecial(); };
+$('btn-menu').onclick = () => { if (G.special) { exitSpecialToMenu(); return; } secretStage = null; G.state = 'menu'; save(); refreshMenu(); show('menu'); };
+$('mode').onchange = e => { S.mode = e.target.value; save(); refreshMenu(); };
+$('btn-special').onclick = () => { sfx.click(); show('codes'); };
+$('code-form').onsubmit = e => {
+  e.preventDefault();
+  const stage = resolveSecret($('secret-code').value);
+  if (!stage) { $('code-error').textContent = 'الرقم غير صحيح. اطلب رقمك مجاناً عبر التليكرام.'; return; }
+  sfx.init(); endSpecial(); secretStage = stage; buildLevel(stage.level); G.state = 'play'; show(null);
+};
 $('btn-pause-help').onclick = () => show('help');
 $('btn-next').onclick = () => { sfx.click(); nextLevel(); };
 $('vol').value = S.volume;
@@ -1443,4 +1515,4 @@ setTimeout(() => document.body.classList.add('ready'), 100);
 
 // debug hooks for automated tests
 window.__w = world; window.__tank = tank;
-window.__game = { renderer, THREE, scene, camera, world, models: { buildSoldier, buildTank, buildHeliHD, buildSUV, buildBoatHD }, startSpecial, G, P, get S() { return S; }, startGame, buildLevel, WEAPONS, spawnVehicle, spawnSoldier, addXP, keys, stepPlay, fx, ground, nextLevel };
+window.__game = { renderer, THREE, scene, camera, world, models: { buildSoldier, buildTank, buildHeliHD, buildSUV, buildBoatHD }, startSpecial, G, P, get S() { return S; }, startGame, buildLevel, WEAPONS, spawnVehicle, spawnSoldier, spawnCrate, collectCrate, resolveSecret, vehicleFor, addXP, keys, stepPlay, fx, ground, nextLevel };

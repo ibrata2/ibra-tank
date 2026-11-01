@@ -80,7 +80,7 @@ body.playing #game{cursor:crosshair}
 .screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .35s}
 .screen.show{opacity:1;pointer-events:auto}
 #menu{background:linear-gradient(90deg,rgba(0,0,0,.15) 0%,rgba(0,0,0,.25) 45%,rgba(0,0,0,.82) 100%);justify-content:flex-start;padding-right:7vw}
-.menu-box{width:min(440px,90vw);display:flex;flex-direction:column;gap:12px}
+.menu-box{max-height:96vh;overflow:auto;padding:8px;width:min(440px,90vw);display:flex;flex-direction:column;gap:12px}
 .logo{margin-bottom:10px}
 .logo .en{font-size:62px;font-weight:900;letter-spacing:4px;direction:ltr;text-align:right;background:linear-gradient(180deg,#fff6cf,var(--gold) 55%,#8a6a1c);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 4px 12px rgba(0,0,0,.6));line-height:1}
 .logo .ar{font-size:30px;font-weight:800;color:#fff;margin-top:4px;text-shadow:0 3px 12px #000;display:flex;align-items:center;gap:12px;justify-content:flex-start}
@@ -102,7 +102,7 @@ kbd{display:inline-block;min-width:26px;padding:2px 7px;margin:0 2px;border-radi
 .dialog .actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
 .dialog label{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.07)}
 select,input[type=range]{accent-color:var(--gold);font:inherit;background:#1a1a1a;color:#fff;border:1px solid #444;border-radius:8px;padding:4px 8px}
-#pause,#complete,#help,#settings{background:rgba(0,0,0,.55)}
+#pause,#complete,#help,#settings,#codes{background:rgba(0,0,0,.55)}
 #cmp-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 16px}
 #cmp-stats div{padding:12px;border-radius:12px;background:rgba(255,255,255,.05);display:flex;flex-direction:column;gap:4px}
 #cmp-stats span{font-size:12px;opacity:.7}
@@ -167,8 +167,10 @@ body.ready #loader{opacity:0;pointer-events:none}
   <div class="menu-box">
     <div class="logo"><div class="en">IBRA TANK</div><div class="ar"><canvas class="iqflag" width="90" height="60"></canvas> درع العراق</div><div class="tag">الجيش العراقي يدافع عن الوطن · محافظات ومدن العراق · مراحل لا تنتهي</div></div>
     <button class="btn primary" id="btn-play">ابدأ اللعب</button>
+    <label for="mode">اختر مود اللعب</label>
+    <select id="mode" class="btn" aria-label="مود اللعب"><option value="tank">مود الدبابة</option><option value="heli">مود الهليكوبتر</option><option value="boat">مود السفينة</option><option value="combined">مود متكامل · دبابة وهليكوبتر وسفينة</option></select>
     <div id="menu-info"></div>
-    <button class="btn special" id="btn-special">🎬 من تمل من هاي اللعبة… تعال هنا 😉<small>مرحلة خاصة: دبابة · هليكوبتر · قارب</small></button>
+    <button class="btn special" id="btn-special">🔐 اكتب رقم<small>10 مراحل سرية بمهام وبيئات مختلفة</small></button>
     <button class="btn" id="btn-new">لعبة جديدة من البداية</button>
     <button class="btn" id="btn-help">طريقة اللعب والتحكم</button>
     <button class="btn" id="btn-settings">الإعدادات</button>
@@ -181,12 +183,13 @@ body.ready #loader{opacity:0;pointer-events:none}
 <div id="help" class="screen"><div class="dialog">
   <h2>طريقة اللعب</h2>
   <div class="keys">
-    <span><kbd>→</kbd><kbd>←</kbd> أو <kbd>D</kbd><kbd>A</kbd></span><span>تحريك الدبابة يمين ويسار</span>
+    <span><kbd>→</kbd><kbd>←</kbd> أو <kbd>D</kbd><kbd>A</kbd></span><span>تحريك المركبة يمين ويسار</span>
     <span><kbd>↑</kbd><kbd>↓</kbd> أو <kbd>W</kbd><kbd>S</kbd></span><span>رفع وتنزيل المدفع (أو عجلة الماوس)</span>
     <span><kbd>Space</kbd> أو كليك الماوس</span><span>إطلاق النار (اضغط مطوّلاً للرمي المتواصل)</span>
     <span><kbd>1</kbd> … <kbd>6</kbd></span><span>تبديل السلاح من أرقام الكيبورد</span>
     <span><kbd>Q</kbd><kbd>E</kbd></span><span>السلاح السابق / التالي</span>
     <span><kbd>P</kbd> أو <kbd>Esc</kbd></span><span>إيقاف مؤقت</span>
+    <span><kbd>R</kbd> / <kbd>F</kbd></span><span>ارتفاع / انخفاض الهليكوبتر؛ المعدات تنجذب عند المرور فوقها</span>
     <span><kbd>M</kbd> · <kbd>F11</kbd></span><span>كتم الصوت · ملء الشاشة</span>
   </div>
   <ul>
@@ -225,6 +228,11 @@ body.ready #loader{opacity:0;pointer-events:none}
   <div class="actions"><button class="btn primary" id="btn-next">المرحلة التالية ⟵</button></div>
 </div></div>
 
+<div id="codes" class="screen"><div class="dialog">
+<h2>10 عمليات سرية</h2><p>تريد رقم سري؟ روح اكتب بالتلي واطلب رقم سري مجاناً هنا:</p>
+<p><a href="https://t.me/ibraprogram" data-ext style="color:var(--gold2)">تليكرام @ibraprogram — طلب رقم مجاني</a></p>
+<form id="code-form"><label for="secret-code">رقم المرحلة السرية</label><input id="secret-code" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="اكتب الرقم من 6 أرقام" required aria-describedby="code-error" style="padding:14px;width:100%;font:inherit;border-radius:12px;margin:12px 0"><p id="code-error" role="alert"></p><button class="btn primary" type="submit">افتح العملية</button></form>
+<p>كل رقم يفتح عملية مختلفة. ترقياتك تبقى محفوظة بالحملة.</p><div class="actions"><button class="btn" data-back>رجوع</button></div></div></div>
 <div id="loader">IBRA TANK…</div>
 <script src="game.bundle.js"></script>
 </body>

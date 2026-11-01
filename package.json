@@ -1,17 +1,21 @@
 {
   "name": "ibra-tank",
   "productName": "IBRA TANK",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "IBRA TANK — درع العراق: لعبة دبابة ثلاثية الأبعاد بمراحل لا تنتهي",
   "author": "Ibrahim Al-Khazraji (IBRAPROGRAM)",
   "license": "MIT",
-  "repository": { "type": "git", "url": "https://github.com/ibrata2/ibra-tank.git" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ibrata2/ibra-tank.git"
+  },
   "main": "main.js",
   "scripts": {
     "bundle": "esbuild src/game.js --bundle --minify --format=iife --outfile=src/game.bundle.js",
     "start": "npm run bundle && electron .",
     "dist": "npm run bundle && electron-builder --win nsis --x64",
-    "dist:portable": "npm run bundle && electron-builder --win portable --x64"
+    "dist:portable": "npm run bundle && electron-builder --win portable --x64",
+    "test": "node scripts/test-campaign.mjs"
   },
   "dependencies": {},
   "devDependencies": {
@@ -25,12 +29,24 @@
     "appId": "com.ibraprogram.ibratank",
     "productName": "IBRA TANK",
     "copyright": "© Ibrahim Al-Khazraji — IBRAPROGRAM",
-    "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["main.js", "preload.js", "build/icon.png", "src/index.html", "src/game.bundle.js", "package.json"],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "build/icon.png",
+      "src/index.html",
+      "src/game.bundle.js",
+      "package.json"
+    ],
     "afterPack": "scripts/after-pack.js",
     "asar": true,
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "icon": "build/icon.ico",
       "signAndEditExecutable": false,
       "artifactName": "IBRA-TANK-Setup-${version}.${ext}"
@@ -44,7 +60,10 @@
       "shortcutName": "IBRA TANK",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
-      "installerLanguages": ["ar_SA", "en_US"],
+      "installerLanguages": [
+        "ar_SA",
+        "en_US"
+      ],
       "language": "1025",
       "runAfterFinish": true
     }
