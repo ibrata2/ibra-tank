@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {ADVENTURE as A,CHAPTERS,bridgeHeight} from '../src/adventure-plan.mjs';
 import {combinedPlan} from '../src/combined-plan.mjs';
-assert.equal(CHAPTERS.length,18);
+assert.equal(CHAPTERS.length,20);
 assert.deepEqual(CHAPTERS.filter(c=>c.fuel!==undefined).map(c=>c.fuel),[0,1]);
 assert.ok(CHAPTERS.find(c=>c.id==='infantry').view==='side');
 assert.ok(CHAPTERS.find(c=>c.id==='bridge').to===A.bridgeEnd);
@@ -23,3 +23,7 @@ console.log('Side-only combat, continuous waves and helicopter framing: passed')
 
 assert.ok(CHAPTERS.some(c=>c.vehicle==='car'&&c.to));
 assert.ok(CHAPTERS.some(c=>c.id==='board-car'&&!c.to));
+
+assert.ok(CHAPTERS.find(c=>c.id==='infantry').to-(A.firstPad+16)<=60);
+assert.ok(CHAPTERS.some(c=>c.vehicle==='bike'&&c.to));
+assert.ok(A.tankParking<A.firstPad-20);

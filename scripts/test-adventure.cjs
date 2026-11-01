@@ -21,11 +21,16 @@ const path=require('node:path');const {pathToFileURL}=require('node:url');
     check(!g.G.special.pointerMove&&!g.G.special.pointerDown,'Mouse orbit and pointer lock must be removed');
     let x=g.P.x;g.keys.add('KeyD');frames(12);g.keys.clear();check(g.P.x>x,'D moves right');
     const y=g.P.x;g.keys.add('KeyW');frames(1);g.keys.clear();check(Math.abs(g.P.x-y)<1,'W adjusts aim rather than walking forward');
-    const stages=[['tank-advance',920,6],['false-boarding',null,0],['infantry',1160,10],['board-car',null,0],['military-drive',1420,8],['board-heli',null,0],['heli-assault',2100,8],['heli-side',2780,8],['allied-boarding',null,0],['joint-battle',3340,12],['return-tank',null,0],['tank-support',3700,8],['air-support',4000,8],['bridge',4700,14],['camp',5120,10]];
+    const stages=[['tank-advance',896,6],['false-boarding',null,0],['infantry',980,4],['board-bike',null,0],['bike-push',1140,6],['board-car',null,0],['military-drive',1420,8],['board-heli',null,0],['heli-assault',2100,8],['heli-side',2780,8],['allied-boarding',null,0],['joint-battle',3340,12],['return-tank',null,0],['tank-support',3700,8],['air-support',4000,8],['bridge',4700,14],['camp',5120,10]];
     for(const [id,to,kills] of stages){
       check(dbg().view==='side'||!to,'Every combat chapter must use the side camera');
       check(dbg().id===id,'Expected '+id+' got '+dbg().id);log.push(id);
-      if(!to){frames(id==='false-boarding'?330:id==='board-car'?170:id==='board-heli'?230:id==='return-tank'?290:260);continue;}
+      if(!to){
+        if(id==='false-boarding'){frames(60);check(Math.abs(dbg().tankParkedX-890)<.1,'Tank must park before the aircraft');frames(130);check(dbg().decoyDestroyed&&dbg().heroX<=910,'RPG must hit before soldier reaches helicopter');frames(140);}
+        else frames(id==='board-bike'?90:id==='board-car'?170:id==='board-heli'?230:id==='return-tank'?290:260);
+        continue;
+      }
+      if(id==='bike-push'){check(g.P.vehicle==='bike'&&dbg().bikeDelivered,'Player must board the delivered bike');g.keys.add('KeyD');const before=g.P.x;frames(12);g.keys.clear();check(g.P.x>before,'Motorcycle must be controllable');g.P.wi=1;g.P.cd.fill(0);g.keys.add('Space');frames(1);g.keys.clear();check(g.P.cd[1]>0,'Player bike rider must fire');}
       if(id==='infantry'){check(dbg().decoyDestroyed,'RPG must destroy the first helicopter before infantry combat');check(dbg().lastReason==='aircraft-destroyed','Infantry transition needs destruction reason');
         g.P.wi=1;g.P.cd.fill(0);g.keys.add('Space');frames(1);g.keys.clear();check(g.P.cd[1]>0,'Infantry must fire shared weapon');
       }

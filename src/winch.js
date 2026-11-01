@@ -9,7 +9,7 @@ export class RescueWinch {
   }
   get busy(){return !!this.job;}
   start(kind,item,root,done){
-    if(this.job)return false;
+    if(kind!=='friend'||this.job)return false;
     const pos=root.getWorldPosition(new THREE.Vector3());
     this.job={kind,item,root,done,t:0,start:pos.clone(),anchorX:this.P.x};item.hoisted=true;
     if(kind==='friend'){item.state='hoist';item.marker.visible=false;}

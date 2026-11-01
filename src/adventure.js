@@ -20,7 +20,7 @@ export function createAdventure(ctx) {
   let heliRunning = false, allyTankActive = false, allyHeliActive = false, shipActive = false;
   let departingTank = false, departingHeli = false, parkedTankX = 22;
   let lastTier = ctx.stats().tier;
-  let walkDistance=0, decoyDestroyed=false, carCrew=false, convoyActive=false, carCd=0, passengerCd=0, lastReason='';
+  let walkDistance=0, decoyDestroyed=false, carCrew=false, convoyActive=false, carCd=0, passengerCd=0, lastReason='',parkingStartX=0,bikeDelivered=false;
   const bikeCd=[0,0];
   const oldFov=camera.fov;
   const markers=document.createElement('div');markers.id='story-enemies';document.body.append(markers);
@@ -37,6 +37,7 @@ export function createAdventure(ctx) {
   const car=buildSUV('green',4);group.add(car.root);
   const passenger=buildSoldierHD('mg','desert',1601,true,{tier:3,drone:false});group.add(passenger.root);
   const bikes=[buildEscortBike(1602),buildEscortBike(1603)];for(const bike of bikes)group.add(bike.root);
+  const playerBike=buildEscortBike(1701);group.add(playerBike.root);
   const attacker=buildSoldierHD('rpg','green',1666,false,{drone:false});attacker.root.visible=false;group.add(attacker.root);
   const heroPos = new THREE.Vector3(4, ctx.ground(4), -1.5);
   const soldiers = [], crew = [], flags = [], fuels = [];
@@ -44,6 +45,7 @@ export function createAdventure(ctx) {
   const chapter = () => CHAPTERS[index];
   const surface = x => bridgeHeight(x, world.heightAt(x));
   world.driveHeight = surface;
+  playerBike.root.position.set(A.bikeStation+80,surface(A.bikeStation+80),-12);
 
   function mesh(geo, color, x, y, z, parent = group, extra = {}) {
     const material = new THREE.MeshStandardMaterial({ color, roughness: .8, ...extra });
@@ -174,9 +176,12 @@ export function createAdventure(ctx) {
     if(!c.to){for(let i=G.enemies.length-1;i>=0;i--){const e=G.enemies[i];if(Math.abs(e.x-P.x)<45){if(e.dead){e.z=-28;e.m.root.position.z=-28;}else{scene.remove(e.m.root);G.enemies.splice(i,1);}}}}
     if(c.id==='intro'){tank.root.visible=true;P.x=4;heroPos.set(0,surface(0),-23);tank.root.position.set(22,surface(22),-14);tank.root.rotation.set(0,0,0);}
     if(c.id==='tank-side'){P.x=22;P.z=-14;}
-    if(c.id==='false-boarding'){parkedTankX=P.x;tank.root.visible=true;tank.root.position.z=-14;heroPos.set(P.x-2,surface(P.x),-12);lastReason='land-route-complete';}
-    if(c.id==='infantry'){tank.root.visible=true;tank.root.position.set(parkedTankX,surface(parkedTankX),-14);hero.root.visible=true;P.x=A.firstPad+16;P.y=surface(P.x);P.z=0;}
-    if(c.id==='board-car'){lastReason='infantry-route-complete';heroPos.set(P.x,surface(P.x),-12);}
+    if(c.id==='false-boarding'){parkingStartX=P.x;parkedTankX=A.tankParking;tank.root.visible=true;hero.root.visible=false;heroPos.set(parkedTankX-2,surface(parkedTankX),-12);lastReason='land-route-complete';}
+    if(c.id==='infantry'){convoyActive=true;car.root.position.set(A.firstPad-29,surface(A.firstPad-29),-5);tank.root.visible=true;tank.root.position.set(parkedTankX,surface(parkedTankX),-14);hero.root.visible=true;P.x=A.firstPad+16;P.y=surface(P.x);P.z=0;}
+    if(c.vehicle==='soldier'&&hero.root.parent!==group){group.attach(hero.root);hero.root.rotation.set(0,0,0);}
+    if(c.id==='board-bike'){playerBike.body.rotation.y=0;lastReason='short-infantry-route-complete';heroPos.set(P.x,surface(P.x),0);}
+    if(c.id==='bike-push'){playerBike.rider.root.visible=false;playerBike.body.add(hero.root);hero.root.visible=true;hero.root.position.set(-.2,.4,0);hero.body.rotation.y=0;hero.legL.rotation.z=hero.legR.rotation.z=1.3;hero.pose(true);P.x=A.bikeStation;P.z=-12;P.y=surface(P.x);}
+    if(c.id==='board-car'){car.root.position.set(A.carStation+8,surface(A.carStation+8),-14);lastReason='bike-route-complete';playerBike.root.position.z=-14;heroPos.set(P.x,surface(P.x),-12);}
     if(c.id==='military-drive'){P.x=A.carStation+8;P.y=surface(P.x);P.z=-14;carCrew=true;convoyActive=true;}
     if(c.id==='board-heli'){lastReason='ground-route-complete';heroPos.set(P.x,surface(P.x),-12);car.root.position.z=-14;}
     if(c.id==='heli-assault'){heliRunning=true;P.z=-14;hero.root.visible=false;P.x=A.secondPad;P.alt=10;P.y=surface(P.x)+P.alt;}
@@ -187,8 +192,8 @@ export function createAdventure(ctx) {
     if(c.id==='air-support'){departingTank=true;allyHeliActive=true;airAlly.root.visible=true;airAlly.root.position.set(P.x-40,surface(P.x)+24,-5);}
     if(c.id==='bridge'){shipActive=true;departingHeli=true;ship.root.visible=true;ship.root.position.set(A.bridgeStart+8,world.waterY-.55,-19);}
     if(c.id==='ending'){G.ceasefire=true;complete=true;P.vx=0;P.y=surface(P.x);ctx.setTankUI(false);}
-    const body=c.vehicle==='heli'?heli.body:c.vehicle==='car'?car.body:tank.body;
-    if(['tank','car','heli'].includes(c.vehicle))for(const f of G.friends.filter(f=>f.state==='ride'))body.add(f.m.root);
+    const body=c.vehicle==='heli'?heli.body:c.vehicle==='car'?car.body:c.vehicle==='bike'?playerBike.body:tank.body;
+    if(['tank','car','bike','heli'].includes(c.vehicle))for(const f of G.friends.filter(f=>f.state==='ride'))body.add(f.m.root);
     objective();ctx.toast(c.title,'gold');
   }
   function targetAhead(max=90, useFuel=true) {
@@ -198,7 +203,7 @@ export function createAdventure(ctx) {
   }
   function muzzle() {
     let m;
-    if(P.vehicle==='heli')m=heli.muzzle;else if(P.vehicle==='car')m=car.muzzle;else if(P.vehicle==='soldier')m=hero.muzzle;else m=tank.muzzle;
+    if(P.vehicle==='heli')m=heli.muzzle;else if(P.vehicle==='car')m=car.muzzle;else if(P.vehicle==='bike')m=hero.muzzle;else if(P.vehicle==='soldier')m=hero.muzzle;else m=tank.muzzle;
     m.updateWorldMatrix(true,false);const p=m.getWorldPosition(new THREE.Vector3());
     const aim=new THREE.Vector3(Math.cos(P.aim)*P.facing,Math.sin(P.aim),0);
     const target=targetAhead(105);
@@ -229,27 +234,40 @@ export function createAdventure(ctx) {
       P.x=heroPos.x;P.y=heroPos.y;P.z=heroPos.z;
       if(u>=15){enter(index+1);return;}
     } else if(c.id==='false-boarding') {
-      tank.root.visible=true;tank.root.position.z=-14;
-      if(u<2){heroPos.set(parkedTankX-2,surface(parkedTankX)+2*(1-u/2),-12);animateHero(heroPos,u*5,0);}
-      else if(u<6)moveHero(new THREE.Vector3(parkedTankX-2,0,-12),new THREE.Vector3(A.firstPad-3,0,-14),(u-2)/4);
-      else if(u<9){heroPos.set(A.firstPad-3,surface(A.firstPad),-14);animateHero(heroPos,0,0);}
-      else moveHero(new THREE.Vector3(A.firstPad-3,0,-14),new THREE.Vector3(A.firstPad+16,0,0),(u-9)/7);
-      attacker.root.visible=u>=5&&u<14;
-      if(u>=6&&u<7.5){
+      tank.root.visible=true;
+      if(u<2){
+        hero.root.visible=false;tank.root.position.set(lerp(parkingStartX,A.tankParking,u/2),surface(A.tankParking),lerp(0,-14,u/2));
+        P.x=tank.root.position.x;P.y=tank.root.position.y;P.z=tank.root.position.z;
+      }else{
+        hero.root.visible=true;tank.root.position.set(A.tankParking,surface(A.tankParking),-14);
+        if(u<4){heroPos.set(parkedTankX-2,surface(parkedTankX)+2*(1-(u-2)/2),-12);animateHero(heroPos,u*5,0);}
+        else if(u<8)moveHero(new THREE.Vector3(parkedTankX-2,0,-12),new THREE.Vector3(A.firstPad-12,0,-14),(u-4)/4);
+        else if(u<10){heroPos.set(A.firstPad-12,surface(A.firstPad),-14);animateHero(heroPos,0,0);}
+        else moveHero(new THREE.Vector3(A.firstPad-12,0,-14),new THREE.Vector3(A.firstPad+16,0,0),(u-10)/6);
+        P.x=heroPos.x;P.y=heroPos.y;P.z=heroPos.z;
+      }
+      attacker.root.visible=u>=7&&u<14;
+      if(u>=7.5&&u<9){
         attacker.muzzle.updateWorldMatrix(true,false);const start=attacker.muzzle.getWorldPosition(new THREE.Vector3()),end=decoy.root.position.clone();
-        ambushRocket.visible=true;ambushRocket.position.lerpVectors(start,end,(u-6)/1.5);ambushRocket.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),end.sub(start).normalize());
+        ambushRocket.visible=true;ambushRocket.position.lerpVectors(start,end,(u-7.5)/1.5);ambushRocket.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),end.sub(start).normalize());
         fx.spawn({tex:'smoke',additive:false,x:ambushRocket.position.x,y:ambushRocket.position.y,z:ambushRocket.position.z,vy:.4,life:.8,size0:.25,size1:1,alpha:.7,color:'#aaa'});
       }
-      if(u>=7.5&&!decoyDestroyed){
+      if(u>=9&&!decoyDestroyed){
         decoyDestroyed=true;lastReason='aircraft-destroyed';ambushRocket.visible=false;
         decoy.root.traverse(o=>{if(o.isMesh)o.material=burned;});decoy.root.rotation.z=-.22;
         for(let i=0;i<35;i++)fx.spawn({tex:'fire',x:A.firstPad+(Math.random()-.5)*6,y:surface(A.firstPad)+1+Math.random()*3,z:-14+(Math.random()-.5)*3,vy:2+Math.random()*5,life:1.2,size0:2.5,size1:.1});
-        sfx.explosion(3);G.shake=1.5;ctx.toast('جندي معادٍ ضرب الطائرة بقاذفة — ابتعد عنها وأكمل راجلاً!','warn');
+        sfx.explosion(3);G.shake=1.5;ctx.toast('ضربوا الطائرة قبل ما نوصل إلها! ابتعد وتقدم تحت غطاء الجيش','warn');
       }
-      P.x=heroPos.x;P.y=heroPos.y;P.z=heroPos.z;
       if(u>=16){attacker.root.visible=false;enter(index+1);return;}
+    } else if(c.id==='board-bike') {
+      playerBike.root.position.set(A.bikeStation,surface(A.bikeStation),-12);
+      if(!bikeDelivered){group.attach(playerBike.rider.root);bikeDelivered=true;}
+      playerBike.rider.root.position.set(A.bikeStation+3+u,surface(A.bikeStation),-16);playerBike.rider.legL.rotation.z=Math.sin(u*8)*.5;playerBike.rider.legR.rotation.z=-Math.sin(u*8)*.5;playerBike.rider.pose();
+      moveHero(new THREE.Vector3(A.bikeStation-3,0,0),new THREE.Vector3(A.bikeStation,0,-12),clamp(u/3,0,1));
+      P.x=heroPos.x;P.y=heroPos.y;P.z=heroPos.z;
+      if(u>=4){enter(index+1);return;}
     } else if(c.id==='board-car') {
-      const k=clamp(u/5,0,1);moveHero(new THREE.Vector3(A.carStation-3,0,0),new THREE.Vector3(A.carStation+7,0,-14),k);
+      const k=clamp(u/5,0,1);moveHero(new THREE.Vector3(A.bikeEnd-2,0,-12),new THREE.Vector3(A.carStation+7,0,-14),k);
       if(u<5){passenger.root.position.lerpVectors(new THREE.Vector3(A.carStation-5,surface(A.carStation),-12),new THREE.Vector3(A.carStation+7,surface(A.carStation),-13),k);passenger.legL.rotation.z=Math.sin(u*9)*.6;passenger.legR.rotation.z=-Math.sin(u*9)*.6;passenger.pose();}
       else if(passenger.root.parent!==car.body){car.body.add(passenger.root);passenger.root.position.set(-1,1.7,.9);passenger.legL.rotation.z=1.4;passenger.legR.rotation.z=1.4;passenger.pose(true);hero.root.visible=false;ctx.toast('صعد جندي الإسناد معك — الدراجات تؤمن الطريق','ok');}
       P.x=heroPos.x;P.y=heroPos.y;P.z=heroPos.z;
@@ -281,7 +299,7 @@ export function createAdventure(ctx) {
     const c=chapter();
     const horizontal=(keys('KeyD','ArrowRight')?1:0)-(keys('KeyA','ArrowLeft')?1:0);
     const vertical=(keys('KeyW','ArrowUp')?1:0)-(keys('KeyS','ArrowDown')?1:0);
-    const speed=c.vehicle==='soldier'?5.4:c.vehicle==='heli'?15:c.vehicle==='car'?13:10.5;
+    const speed=c.vehicle==='soldier'?5.4:c.vehicle==='heli'?15:c.vehicle==='bike'?15:c.vehicle==='car'?13:10.5;
     const from=index===1?22:CHAPTERS.slice(0,index).reverse().find(s=>s.to)?.to||0;
     const response=1-Math.exp(-dt*(c.vehicle==='soldier'?10:4));
     P.vx=ctx.winch.busy&&c.vehicle==='heli'?0:lerp(P.vx,horizontal*speed,response);
@@ -294,6 +312,8 @@ export function createAdventure(ctx) {
     if(c.vehicle==='heli'){
       P.alt=clamp(P.alt+((keys('KeyR')?1:0)-(keys('KeyF')?1:0))*dt*5,5,22);P.y+=P.alt;
       heli.root.position.set(P.x,P.y,P.z);heli.body.rotation.y=heading;heli.root.rotation.z=-P.vx*.008;
+    }else if(c.vehicle==='bike'){
+      playerBike.root.position.set(P.x,P.y,P.z);playerBike.body.rotation.y=heading;for(const wheel of playerBike.wheels)wheel.rotation.z-=P.vx*dt*2;hero.legL.rotation.z=hero.legR.rotation.z=1.3;hero.pose(true);
     }else if(c.vehicle==='car'){
       car.root.position.set(P.x,P.y,P.z);car.body.rotation.y=heading;car.gunPivot.rotation.z=P.aim;for(const wheel of car.wheels)wheel.rotation.z-=P.vx*dt*1.8;
     }else if(c.vehicle==='soldier'){
@@ -327,8 +347,14 @@ export function createAdventure(ctx) {
     return kind==='bullet'?.18:2.5;
   }
   function allies(dt) {
+    if(chapter().id==='infantry'&&!bikeDelivered){
+      playerBike.root.position.x=Math.max(A.bikeStation,playerBike.root.position.x-dt*14);playerBike.root.position.y=surface(playerBike.root.position.x);
+      playerBike.body.rotation.y=Math.PI;for(const wheel of playerBike.wheels)wheel.rotation.z+=dt*20;
+      if(playerBike.root.position.x<=A.bikeStation){group.attach(playerBike.rider.root);playerBike.rider.root.position.set(A.bikeStation+3,surface(A.bikeStation),-16);playerBike.body.rotation.y=0;bikeDelivered=true;ctx.toast('وصلت دراجة عسكرية وتنتظرك على جانب الطريق','ok');}
+    }
+
     if(convoyActive&&chapter().to){
-      if(P.vehicle!=='car'){car.root.position.x=lerp(car.root.position.x,P.x-15,dt*.8);car.root.position.y=surface(car.root.position.x);car.root.position.z=-5;for(const wheel of car.wheels)wheel.rotation.z-=dt*12;carCd=friendlyFire(car,carCd,dt,'bullet',90);}
+      if(P.vehicle!=='car'){car.root.position.x=lerp(car.root.position.x,chapter().id==='bike-push'&&P.x>A.bikeEnd-60?A.carStation+8:P.x-15,dt*.8);car.root.position.y=surface(car.root.position.x);car.root.position.z=-5;for(const wheel of car.wheels)wheel.rotation.z-=dt*12;carCd=friendlyFire(car,carCd,dt,'bullet',90);}
       if(carCrew)passengerCd=friendlyFire(passenger,passengerCd,dt,'bullet',85);
       bikes.forEach((bike,i)=>{bike.root.position.x=lerp(bike.root.position.x,P.x-7-i*7,dt*1.2);bike.root.position.y=surface(bike.root.position.x);bike.root.position.z=i?5:-5;for(const wheel of bike.wheels)wheel.rotation.z-=dt*15;bikeCd[i]=friendlyFire(bike,bikeCd[i],dt,'bullet',85);});
     }
@@ -357,7 +383,7 @@ export function createAdventure(ctx) {
   function cameraPose(view) {
     const x=P.x,y=P.y,z=P.z||0;
     if(view==='hero') {
-      if(chapter().id==='false-boarding'&&elapsed>=5.5&&elapsed<9){const t=elapsed<6?attacker.root.position.clone().add(new THREE.Vector3(0,1.5,0)):elapsed<7.5?ambushRocket.position:decoy.root.position;return {pos:new THREE.Vector3(A.firstPad+10,surface(A.firstPad)+6,7),look:t.clone()};}
+      if(chapter().id==='false-boarding'&&elapsed>=7&&elapsed<10.5){const t=elapsed<7.5?attacker.root.position.clone().add(new THREE.Vector3(0,1.5,0)):elapsed<9?ambushRocket.position:decoy.root.position;return {pos:new THREE.Vector3(A.firstPad+10,surface(A.firstPad)+6,7),look:t.clone()};}
       if(chapter().id==='intro'&&elapsed<5)return {pos:new THREE.Vector3(heroPos.x+.7,heroPos.y+2.6,heroPos.z-3.5),look:heroPos.clone().add(new THREE.Vector3(0,1.3,0))};
       if(chapter().id==='allied-boarding')return {pos:new THREE.Vector3(A.alliedCamp+19,surface(A.alliedCamp)+5,13),look:new THREE.Vector3(A.alliedCamp+9,surface(A.alliedCamp)+1.8,-3)};
       if(chapter().id==='ending')return {pos:new THREE.Vector3(A.finish+8,surface(A.finish)+9,40),look:finalSign.position.clone()};
@@ -370,11 +396,11 @@ export function createAdventure(ctx) {
   enter(0);
   return {
     depthCombat:true,
-    carrierRoot:()=>heli.root,carrierBody:()=>P.vehicle==='heli'?heli.body:P.vehicle==='car'?car.body:tank.body,
+    carrierRoot:()=>heli.root,carrierBody:()=>P.vehicle==='heli'?heli.body:P.vehicle==='car'?car.body:P.vehicle==='bike'?playerBike.body:tank.body,
     muzzleInfo:muzzle,
     projectileHit:impact,
     projectileGround:(x,z)=>x>=A.bridgeStart&&x<=A.bridgeEnd&&Math.abs(z)>6.5?world.waterY:surface(x),
-    dbg:()=>({chapter:index,id:chapter().id,view:chapter().view,vehicle:P.vehicle,elapsed,kills:chapterKills(),complete,fuels:fuels.map(f=>f.exploded),allies:{tank:allyTankActive,heli:allyHeliActive,ship:shipActive},walkDistance,decoyDestroyed,lastReason,carCrew,convoyActive,enemies:G.enemies.filter(e=>!e.dead).length}),
+    dbg:()=>({chapter:index,id:chapter().id,view:chapter().view,vehicle:P.vehicle,elapsed,kills:chapterKills(),complete,fuels:fuels.map(f=>f.exploded),allies:{tank:allyTankActive,heli:allyHeliActive,ship:shipActive},walkDistance,decoyDestroyed,lastReason,carCrew,convoyActive,bikeDelivered,heroX:heroPos.x,tankParkedX:tank.root.position.x,enemies:G.enemies.filter(e=>!e.dead).length}),
     update(dt) {
       elapsed+=dt;spawnTimer-=dt;
       const c=chapter();

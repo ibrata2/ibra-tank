@@ -6,7 +6,7 @@ const result=await page.evaluate(()=>{
   if(mode==='story'){
    g.startSpecial();frames(305);let count=0;
    while(g.G.special.dbg().id!=='heli-assault'&&count++<15){
-    const id=g.G.special.dbg().id,targets={'tank-side':420,'tank-advance':920,'infantry':1160,'military-drive':1420};
+    const id=g.G.special.dbg().id,targets={'tank-side':420,'tank-advance':896,'infantry':980,'bike-push':1140,'military-drive':1420};
     if(id==='tank-side')g.G.special.projectileHit({owner:'player',x:421.3,y:g.ground(420)+1,z:0,dmg:100});
     if(targets[id]){g.G.levelKills+=100;g.P.x=targets[id]-2;g.P.vx=0;frames(1);}else frames(350);
    }check(g.P.vehicle==='heli','Story air segment must be reachable');
@@ -14,14 +14,13 @@ const result=await page.evaluate(()=>{
   g.winch.cancel();for(const c of g.G.crates)g.scene.remove(c.c.root);g.G.crates=[];for(const e of g.G.enemies)g.scene.remove(e.m.root);g.G.enemies=[];g.G.spawns=[];g.G.mission=null;g.G.ceasefire=true;g.P.x=mode==='story'?1800:100;g.P.vx=0;
   for(const kind of ['weapon','ammo','repair','parts']){
    g.P.hp=1;g.P.hitT=0;g.spawnCrate(g.P.x,kind);const c=g.G.crates.at(-1),before=g.winch.completed;frames(1);
-   check(g.winch.busy&&g.G.crates.includes(c),'Must lower winch before collecting '+mode+'/'+kind);
-   frames(30);check(g.winch.line.visible&&c.y>g.ground(c.x),'Cable and raised payload must be visible '+mode+'/'+kind);
-   frames(55);check(!g.G.crates.includes(c)&&g.winch.completed===before+1,'Winch must deliver '+mode+'/'+kind);
+   check(!g.G.crates.includes(c)&&!g.winch.busy&&!g.winch.line.visible,'Cargo must collect immediately without cable '+mode+'/'+kind);
+   check(g.winch.completed===before,'Cargo must not use person winch '+mode+'/'+kind);
   }
   const friend=g.spawnFriend(g.P.x);friend.optional=true;frames(1);check(friend.state==='hoist','Friend must use rope '+mode);frames(80);check(friend.state==='ride','Friend must board after lift '+mode);
   for(const e of g.G.enemies)g.scene.remove(e.m.root);g.G.enemies=[];g.spawnSoldier(g.P.x+30,'rifleman');g.spawnSoldier(g.P.x-30,'rifleman');g.P.facing=-1;g.P.vx=0;g.keys.add('KeyA');frames(8);g.keys.clear();g.P.wi=1;g.P.cd.fill(0);g.keys.add('Space');frames(1);g.keys.clear();
   const shot=g.G.proj.filter(p=>p.owner==='player'&&p.wid==='mg').at(-1);check(shot&&shot.vx<0,'Turning left must turn shots left '+mode);check(g.muzzleInfo().dx<0,'Aim must face left '+mode);
-  log.push(mode+': reverse fire, four cargo types and soldier hoist passed');
+  log.push(mode+': reverse fire, instant equipment pickup and soldier-only hoist passed');
  }
  return log;
 });assert.deepEqual(errors,[]);console.log(result.join('\n'));await browser.close();})().catch(e=>{console.error(e);process.exit(1)});

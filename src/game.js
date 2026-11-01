@@ -85,7 +85,7 @@ const P = { vehicle: 'tank', x: 8, y: 0, vx: 0, facing: 1, aim: 0.1, hp: 320, hi
 
 // All campaigns use the same combat, loot and progression systems.
 let flight = null, vessel = null, secretStage = null;
-const vehicleName = () => P.vehicle === 'car' ? 'السيارة العسكرية' : P.vehicle === 'soldier' ? 'الجندي' : MODE_NAMES[P.vehicle] || MODE_NAMES.tank;
+const vehicleName = () => P.vehicle === 'bike' ? 'الدراجة العسكرية' : P.vehicle === 'car' ? 'السيارة العسكرية' : P.vehicle === 'soldier' ? 'الجندي' : MODE_NAMES[P.vehicle] || MODE_NAMES.tank;
 function refreshVehicle() {
   const riders = G?.friends?.filter(f => f.state === 'ride') || [];
   if (flight) scene.remove(flight.root);
@@ -1330,19 +1330,13 @@ function updateCombat(dt) {
     const c = G.crates[i];
     c.t += dt;
     const gy = G.special?.depthCombat ? ground(c.x) : lootHeight(c.x);
-    if(P.vehicle==='heli'){
-      if(!winch.busy&&Math.abs(c.x-P.x)<6&&P.disabled<=0){
-        c.y=gy;c.c.root.position.set(c.x,gy,0);
-        winch.start('crate',c,c.c.root,()=>{collectCrate(c);scene.remove(c.c.root);const idx=G.crates.indexOf(c);if(idx>=0)G.crates.splice(idx,1);});
-      }
-      if(c.hoisted){c.c.box.rotation.y+=dt;continue;}
-    }
+    if(P.vehicle==='heli'&&Math.abs(c.x-P.x)<7)c.y=lerp(c.y,P.y,Math.min(1,dt*8));
     if (c.y > gy) { c.vy -= 18 * dt; c.y = Math.max(gy, c.y + c.vy * dt); }
     c.c.root.position.set(c.x, c.y, 0);
     c.c.box.position.y = 0.6 + Math.sin(c.t * 3) * 0.12;
     c.c.box.rotation.y += dt;
     c.c.ring.scale.setScalar(1 + Math.sin(c.t * 4) * 0.1);
-    if (P.vehicle!=='heli' && Math.abs(c.x - P.x) < 3.2 && P.disabled <= 0) { collectCrate(c); scene.remove(c.c.root); G.crates.splice(i, 1); }
+    if (Math.abs(c.x - P.x) < 3.2 && P.disabled <= 0) { collectCrate(c); scene.remove(c.c.root); G.crates.splice(i, 1); }
   }
   sfx.engine(P.vx, G.state === 'play');
   // trajectory preview

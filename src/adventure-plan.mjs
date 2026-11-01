@@ -1,15 +1,17 @@
 export const ADVENTURE = Object.freeze({
   length: 5200, firstFuel: 420, firstPad: 920, secondPad: 1440,
-  carStation: 1160, carEnd: 1420, secondFuel: 2100, alliedCamp: 2780, tankSwap: 3340,
+  tankParking: 890, bikeStation: 980, bikeEnd: 1140, carStation: 1160, carEnd: 1420, secondFuel: 2100, alliedCamp: 2780, tankSwap: 3340,
   tankDeparture: 3700, bridgeStart: 4000, bridgeEnd: 4700, finish: 5120,
   cross: [4000, 4700],
 });
 export const CHAPTERS = Object.freeze([
   { id: 'intro', vehicle: 'soldier', view: 'hero', title: 'من داخل المقر إلى ساحة المعركة' },
   { id: 'tank-side', vehicle: 'tank', view: 'side', to: 420, kills: 3, fuel: 0, title: 'تقدم واقصف براميل الوقود' },
-  { id: 'tank-advance', vehicle: 'tank', view: 'side', to: 920, kills: 6, title: 'تقدم إلى المهبط الأول' },
+  { id: 'tank-advance', vehicle: 'tank', view: 'side', to: 896, kills: 6, title: 'تقدم إلى المهبط الأول' },
   { id: 'false-boarding', vehicle: 'soldier', view: 'hero', title: 'انتهى المسار البري — اقترب من الطائرة في المهبط الجانبي' },
-  { id: 'infantry', vehicle: 'soldier', view: 'side', to: 1160, kills: 10, title: 'دمرت الطائرة — قاتل راجلاً إلى نقطة السيارة العسكرية' },
+  { id: 'infantry', vehicle: 'soldier', view: 'side', to: 980, kills: 4, title: 'تقدم راجلاً مسافة قصيرة تحت غطاء الحلفاء إلى الدراجة المنتظرة' },
+  { id: 'board-bike', vehicle: 'soldier', view: 'hero', title: 'دراجة الإسناد وصلت وتنتظرك — اصعد وأكمل المهمة' },
+  { id: 'bike-push', vehicle: 'bike', view: 'side', to: 1140, kills: 6, title: 'تقدم بالدراجة العسكرية مع إسناد الجيش إلى نقطة السيارة' },
   { id: 'board-car', vehicle: 'soldier', view: 'hero', title: 'التحق بالسيارة العسكرية ومعك جندي للإسناد' },
   { id: 'military-drive', vehicle: 'car', view: 'side', to: 1420, kills: 8, title: 'تقدم بالسيارة العسكرية مع الراكب والدراجات المساندة' },
   { id: 'board-heli', vehicle: 'soldier', view: 'hero', title: 'انتهى مسار السيارة — اتركها للإسناد الأرضي واصعد الطائرة الثانية' },
