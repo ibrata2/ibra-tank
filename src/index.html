@@ -140,6 +140,15 @@ select,input[type=range]{accent-color:var(--gold);font:inherit;background:#1a1a1
 #loader{position:fixed;inset:0;background:#000;display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--gold);z-index:99;transition:opacity .6s}
 body.ready #loader{opacity:0;pointer-events:none}
 @media (max-width:900px){#status{width:240px}#objp{width:260px}.slot{width:70px}.logo .en{font-size:42px}}
+.btn.story{display:flex;flex-direction:column;align-items:center;text-align:center;gap:3px;background:linear-gradient(120deg,#173e32,#254f43);border:2px solid #e5c669;box-shadow:0 0 22px #d4af3726}
+.btn.story b{font-size:38px;line-height:1.2;color:#ffdf83}.btn.story small{font-size:13px;color:#f4efdf}
+#adventure-story{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);display:flex;flex-direction:column;text-align:center;gap:5px;max-width:90vw;width:650px;padding:12px 18px;background:#091711d9;border:1px solid #d5bc6c80;border-radius:12px;pointer-events:none;color:#f6efd8}
+#adventure-story strong{font-size:19px;color:#ffdf83}#adventure-story span{font-size:12px}body:not(.playing) #adventure-story{display:none}#adventure-ending{background:#0009;z-index:40}
+.menu-box{gap:8px}.logo{margin-bottom:2px}.logo .en{font-size:48px}.logo .ar{font-size:25px}.credit{margin-top:4px}
+[hidden]{display:none!important}.mode-picker{position:relative}.mode-picker #mode-toggle{width:100%;background:#182820;color:#fff1c5;border-color:#ad9656}
+#mode-options{position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:15;padding:6px;background:#101f19;border:1px solid #ad9656;border-radius:12px;box-shadow:0 12px 30px #000a;display:flex;flex-direction:column;gap:3px}
+#mode-options button{font:inherit;font-size:16px;text-align:right;padding:11px 14px;cursor:pointer;color:#f6efd8;background:#101f19;border:1px solid transparent;border-radius:7px}
+#mode-options button:hover,#mode-options button:focus-visible{outline:2px solid #e3c36b;background:#294735}#mode-options [aria-selected="true"]{color:#ffe29a;background:#304c38;border-color:#ad9656}
 </style>
 </head>
 <body>
@@ -167,9 +176,10 @@ body.ready #loader{opacity:0;pointer-events:none}
   <div class="menu-box">
     <div class="logo"><div class="en">IBRA TANK</div><div class="ar"><canvas class="iqflag" width="90" height="60"></canvas> درع العراق</div><div class="tag">الجيش العراقي يدافع عن الوطن · محافظات ومدن العراق · مراحل لا تنتهي</div></div>
     <button class="btn primary" id="btn-play">ابدأ اللعب</button>
-    <label for="mode">اختر مود اللعب</label>
-    <select id="mode" class="btn" aria-label="مود اللعب"><option value="tank">مود الدبابة</option><option value="heli">مود الهليكوبتر</option><option value="boat">مود السفينة</option><option value="combined">مود متكامل · دبابة وهليكوبتر وسفينة</option></select>
+    <label id="mode-label" for="mode-toggle">اختر مود اللعب</label>
+    <div class="mode-picker"><button class="btn" id="mode-toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="mode-options">مود الدبابة ▾</button><div id="mode-options" role="listbox" aria-labelledby="mode-label" hidden><button type="button" role="option" data-mode="tank">مود الدبابة</button><button type="button" role="option" data-mode="heli">مود الهليكوبتر</button><button type="button" role="option" data-mode="boat">مود السفينة</button><button type="button" role="option" data-mode="combined">مود متكامل · دبابة وهليكوبتر وسفينة</button></div><select id="mode" aria-label="مود اللعب" hidden><option value="tank">مود الدبابة</option><option value="heli">مود الهليكوبتر</option><option value="boat">مود السفينة</option><option value="combined">مود متكامل · دبابة وهليكوبتر وسفينة</option></select></div>
     <div id="menu-info"></div>
+    <button class="btn story" id="btn-story"><b>تعال هنا</b><small>من تخلص وتستكشف كلشي تعال</small></button>
     <button class="btn special" id="btn-special">🔐 اكتب رقم<small>10 مراحل سرية بمهام وبيئات مختلفة</small></button>
     <button class="btn" id="btn-new">لعبة جديدة من البداية</button>
     <button class="btn" id="btn-help">طريقة اللعب والتحكم</button>
