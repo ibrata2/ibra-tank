@@ -4,6 +4,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { canvasTex, rng, treadTexture, wheelTexture, iraqFlagTexture } from './textures.js';
 import { mat, SOLDIER_TYPES, UNIFORMS } from './models.js';
+import { GLB, splitGLB, onGLB, glbPending } from './glb.js';
 
 const std = (color, rough = 0.75, metal = 0.25, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra });
 const gcache = new Map();
@@ -331,6 +332,46 @@ export const TANK_FAMILIES = [
   { name: 'Future MBT', base: '#6e7270', camo: null, wheels: 7, wr: 0.36, skirts: true, len: 8.0 },
 ];
 
+// مجسمات GLB الاحترافية لكل عائلة دبابة — الإحداثيات بوحدات المجسم الأصلي (قبل التكبير)
+// pivot: محور رفع المدفع، gr/gz: نصف قطر السبطانة للتقسيم، tur: [x0, x1, y0] صندوق البرج
+export const TANK_GLB = {
+  0: { key: 'tank0', s: 7.8, pivot: [0.205, 0.279], gr: 0.034, gz: 0.042, tur: [-0.165, 0.33, 0.224], muzzleX: 0.685, flagPos: [-0.75, 0.75, 0.75] },
+  1: { key: 'tank1', s: 8.4, pivot: [0.17, 0.256], gr: 0.035, gz: 0.06, tur: [-0.445, 0.25, 0.218], muzzleX: 0.709, flagPos: [-1.9, 0.95, 0.95] },
+  2: { key: 'tank2', s: 8.3, pivot: [0.2, 0.229], gr: 0.03, gz: 0.036, tur: [-0.29, 0.24, 0.205], muzzleX: 0.68, rotY: Math.PI / 2, flagPos: [-1.1, 0.8, 0.85] },
+  3: { key: 'tank3', s: 8.9, pivot: [0.245, 0.265], gr: 0.035, gz: 0.055, tur: [-0.4, 0.27, 0.212], muzzleX: 0.706, flagPos: [-1.6, 1.3, 1.0] },
+  4: { key: 'tank4', s: 8.7, pivot: [0.17, 0.259], gr: 0.035, gz: 0.042, tur: [-0.43, 0.22, 0.212], muzzleX: 0.638, rotY: Math.PI / 2, flagPos: [-1.7, 0.9, 1.0] },
+};
+const glbSplitCache = {};
+function glbParts(GC) {
+  if (glbSplitCache[GC.key]) return glbSplitCache[GC.key];
+  const [px, py] = GC.pivot, [t0, t1, ty] = GC.tur;
+  const r = splitGLB(GLB[GC.key], (x, y, z) => {
+    if (x > px && Math.abs(y - py) < GC.gr && Math.abs(z) < GC.gz) return 'gun';
+    if (x > t0 && x < t1 && y > ty) return 'turret';
+    return 'hull';
+  }, GC.rotY || 0);
+  return (glbSplitCache[GC.key] = r);
+}
+const glbTintCache = {};
+function applyTankGLB(GC, g, turret, gunPivot, muzzle, ups, wheels, tint) {
+  const sp = glbParts(GC); if (!sp) return null;
+  for (const c of [...g.children]) if (c !== turret && !ups.includes(c)) g.remove(c);
+  for (const c of [...turret.children]) if (c.isMesh) turret.remove(c);
+  for (const c of [...gunPivot.children]) if (c.isMesh) gunPivot.remove(c);
+  wheels.length = 0;
+  let m = sp.material;
+  if (tint) m = glbTintCache[GC.key + tint] || (glbTintCache[GC.key + tint] = (() => { const c = m.clone(); c.color = new THREE.Color(1, 1, 1).lerp(new THREE.Color(tint), 0.6).multiplyScalar(1.25); return c; })());
+  const S = GC.s;
+  const add = (geom, parent, ox, oy) => { if (!geom) return; const mm = new THREE.Mesh(geom, m); mm.scale.setScalar(S); mm.position.set(-ox, -oy, 0); mm.userData.keep = true; mm.castShadow = mm.receiveShadow = true; parent.add(mm); };
+  add(sp.parts.hull, g, 0, 0);
+  add(sp.parts.turret, turret, turret.position.x, turret.position.y);
+  const px = GC.pivot[0] * S, py = GC.pivot[1] * S;
+  gunPivot.position.set(px - turret.position.x, py - turret.position.y, 0);
+  add(sp.parts.gun, gunPivot, px, py);
+  muzzle.position.set(GC.muzzleX * S - px + 0.1, 0, 0);
+  return gunPivot.position.x;
+}
+
 function stadium(x0, x1, y0, y1) {
   const r = (y1 - y0) / 2, s = new THREE.Shape();
   s.moveTo(x0 + r, y0); s.lineTo(x1 - r, y0); s.absarc(x1 - r, y0 + r, r, -Math.PI / 2, Math.PI / 2, false); s.lineTo(x0 + r, y1); s.absarc(x0 + r, y0 + r, r, Math.PI / 2, Math.PI * 1.5, false);
@@ -494,9 +535,12 @@ function buildFamily(fi, paint, opts) {
       const d2 = new THREE.Mesh(pg, fm); d2.position.set(-half + 1.0, 1.3, z * (W / 2 + (F.skirts ? 0.13 : 0.02))); if (z < 0) d2.rotation.y = Math.PI; g.add(d2);
     }
   }
+  let flagPos = [fi === 0 ? -1.3 : -2.3, (fi === 0 ? 0.8 : 0.9) + 0.6, fi === 0 ? 0.85 : 1.05];
+  const GC = TANK_GLB[fi];
+  if (GC && GLB[GC.key]) { const gx = applyTankGLB(GC, g, turret, gunPivot, muzzle, ups, wheels, opts.tint); if (gx != null) { gunX = gx; flagPos = GC.flagPos; } }
   shadowAll(g);
   bake(g);
-  return { group: g, turret, gunPivot, muzzle, breech, wheels, ups, gunBaseX: gunX, flagPos: [fi === 0 ? -1.3 : -2.3, (fi === 0 ? 0.8 : 0.9) + 0.6, fi === 0 ? 0.85 : 1.05] };
+  return { group: g, turret, gunPivot, muzzle, breech, wheels, ups, gunBaseX: gunX, flagPos };
 }
 
 export function buildTankHD(scheme = 'player', seed = 3) {
@@ -510,7 +554,7 @@ export function buildTankHD(scheme = 'player', seed = 3) {
     const F = TANK_FAMILIES[fi];
     const ec = enemyCols[scheme] || enemyCols.enemyGreen;
     const paint = player ? paintMat('tank' + fi, F.base, 11 + fi, { camo: F.camo }) : paintMat('etank' + scheme + fi, ec[0], 31 + fi, { camo: ec[1] });
-    const f = buildFamily(fi, paint, { flag: player });
+    const f = buildFamily(fi, paint, { flag: player, tint: player ? null : ec[0] });
     f.group.visible = false; body.add(f.group);
     // waving flag on turret
     if (player) {
@@ -555,6 +599,13 @@ export function buildTankHD(scheme = 'player', seed = 3) {
     },
   };
   api.setTier(0);
+  // إذا المجسم الاحترافي لسه يتحمّل، نبدّل الشكل أول ما يخلص
+  if (glbPending()) onGLB((key) => {
+    for (let fi = 0; fi < 5; fi++) if (TANK_GLB[fi] && TANK_GLB[fi].key === key && fams[fi]) {
+      body.remove(fams[fi].group); fams[fi] = null;
+      if (cur === fi) { cur = -1; api.setTier(idx); }
+    }
+  });
   return api;
 }
 

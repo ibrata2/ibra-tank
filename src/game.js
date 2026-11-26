@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { World, levelEnv, BIOMES, TIMES } from './world.js';
 import { buildTruck, buildAPC, buildCrate, buildFlag, buildProp, SOLDIER_TYPES, mat } from './models.js';
 import { buildSoldierHD as buildSoldier, buildTankHD as buildTank, buildHeliHD, buildSUV, buildBoatHD, TANK_FAMILIES } from './models_hd.js';
+import { loadAllGLB } from './glb.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { FX } from './fx.js';
 import { Sfx } from './audio.js';
@@ -74,6 +75,7 @@ const stats = () => ({
 });
 
 // ============================================================ PLAYER
+loadAllGLB();
 const tank = buildTank('player', 3);
 scene.add(tank.root);
 const headL = new THREE.SpotLight('#fff3d0', 0, 60, 0.45, 0.6, 1.2);

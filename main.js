@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, shell, Menu } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
@@ -30,6 +31,9 @@ function create() {
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
 }
 
+ipcMain.handle('asset', (_e, name) => {
+  try { return fs.readFileSync(path.join(__dirname, 'src', 'assets', path.basename(String(name)))); } catch { return null; }
+});
 ipcMain.on('quit', () => app.quit());
 ipcMain.on('fullscreen', () => { if (win) win.setFullScreen(!win.isFullScreen()); });
 ipcMain.on('open', (_e, url) => { if (/^https:\/\//.test(url)) shell.openExternal(url); });
