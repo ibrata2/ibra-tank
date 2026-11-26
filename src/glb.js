@@ -32,7 +32,7 @@ export function loadGLB(key, file) {
 }
 
 // يدمج كل meshes المجسم (بعد تطبيق التحويلات) ويقسم المثلثات حسب دالة تصنيف
-// classify(cx, cy, cz) => اسم القطعة. يرجع { parts: {name: BufferGeometry}, material }
+// classify(cx, cy, cz, boundingBox, maxEdge) => اسم القطعة. يرجع { parts: {name: BufferGeometry}, material }
 export function splitGLB(scene, classify, rotY = 0) {
   scene.updateMatrixWorld(true);
   let src = null, material = null;
@@ -40,6 +40,7 @@ export function splitGLB(scene, classify, rotY = 0) {
   if (!src) return null;
   const g = src.geometry.clone(); g.applyMatrix4(src.matrixWorld); if (rotY) g.rotateY(rotY);
   const pos = g.attributes.position;
+  g.computeBoundingBox(); const bb = g.boundingBox;
   const idx = g.index ? g.index.array : [...Array(pos.count).keys()];
   const lists = {};
   for (let t = 0; t < idx.length; t += 3) {
@@ -47,7 +48,9 @@ export function splitGLB(scene, classify, rotY = 0) {
     const cx = (pos.getX(a) + pos.getX(b) + pos.getX(c)) / 3;
     const cy = (pos.getY(a) + pos.getY(b) + pos.getY(c)) / 3;
     const cz = (pos.getZ(a) + pos.getZ(b) + pos.getZ(c)) / 3;
-    const k = classify(cx, cy, cz);
+    const ax = pos.getX(a), ay = pos.getY(a), az = pos.getZ(a), bx = pos.getX(b), by = pos.getY(b), bz = pos.getZ(b), qx = pos.getX(c), qy = pos.getY(c), qz = pos.getZ(c);
+    const ed = Math.max(Math.hypot(ax - bx, ay - by, az - bz), Math.hypot(bx - qx, by - qy, bz - qz), Math.hypot(qx - ax, qy - ay, qz - az));
+    const k = classify(cx, cy, cz, bb, ed);
     (lists[k] || (lists[k] = [])).push(a, b, c);
   }
   const parts = {};
@@ -61,5 +64,5 @@ export function splitGLB(scene, classify, rotY = 0) {
 }
 
 // قائمة المجسمات المتوفرة باللعبة — كل ما يوصل مجسم جديد يضاف هنا
-export const GLB_FILES = { tank0: 'tank_t62.glb', tank1: 'tank_abrams.glb', tank2: 'tank_t90.glb', tank3: 'tank_sep.glb', tank4: 'tank_future.glb' };
+export const GLB_FILES = { tank0: 'tank_t62.glb', tank1: 'tank_abrams.glb', tank2: 'tank_t90.glb', tank3: 'tank_sep.glb', tank4: 'tank_future.glb', heli0: 'heli_blackhawk.glb' };
 export function loadAllGLB() { return Promise.all(Object.entries(GLB_FILES).map(([k, f]) => loadGLB(k, f))); }

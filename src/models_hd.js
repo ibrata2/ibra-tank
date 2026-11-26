@@ -335,18 +335,71 @@ export const TANK_FAMILIES = [
 // مجسمات GLB الاحترافية لكل عائلة دبابة — الإحداثيات بوحدات المجسم الأصلي (قبل التكبير)
 // pivot: محور رفع المدفع، gr/gz: نصف قطر السبطانة للتقسيم، tur: [x0, x1, y0] صندوق البرج
 export const TANK_GLB = {
-  0: { key: 'tank0', s: 7.8, pivot: [0.205, 0.279], gr: 0.034, gz: 0.042, tur: [-0.165, 0.33, 0.224], muzzleX: 0.685, flagPos: [-0.75, 0.75, 0.75] },
-  1: { key: 'tank1', s: 8.4, pivot: [0.17, 0.256], gr: 0.035, gz: 0.06, tur: [-0.445, 0.25, 0.218], muzzleX: 0.709, flagPos: [-1.9, 0.95, 0.95] },
-  2: { key: 'tank2', s: 8.3, pivot: [0.2, 0.229], gr: 0.03, gz: 0.036, tur: [-0.29, 0.24, 0.205], muzzleX: 0.68, rotY: Math.PI / 2, flagPos: [-1.1, 0.8, 0.85] },
-  3: { key: 'tank3', s: 8.9, pivot: [0.245, 0.265], gr: 0.035, gz: 0.055, tur: [-0.4, 0.27, 0.212], muzzleX: 0.706, flagPos: [-1.6, 1.3, 1.0] },
-  4: { key: 'tank4', s: 8.7, pivot: [0.17, 0.259], gr: 0.035, gz: 0.042, tur: [-0.43, 0.22, 0.212], muzzleX: 0.638, rotY: Math.PI / 2, flagPos: [-1.7, 0.9, 1.0] },
+  0: { key: 'tank0', s: 7.8, pivot: [0.205, 0.279], gr: 0.034, gz: 0.042, tur: [-0.165, 0.33, 0.224], muzzleX: 0.685, flagPos: [-0.75, 0.75, 0.75],
+    wheels: [[-0.2464, 0.0698, 0.062], [-0.0939, 0.0698, 0.0609], [0.0356, 0.0713, 0.0582], [0.1567, 0.0708, 0.0593], [0.2796, 0.0703, 0.0598], [-0.361, 0.117, 0.036], [0.373, 0.123, 0.034]],
+    trk: [-0.355, 0.375, 0.012, 0.135, 0.022, 9], pitch: 0.017 },
+  1: { key: 'tank1', s: 8.4, pivot: [0.17, 0.256], gr: 0.035, gz: 0.06, tur: [-0.445, 0.25, 0.218], muzzleX: 0.709, flagPos: [-1.9, 0.95, 0.95],
+    wheels: [0, 1, 2, 3, 4, 5].map((k) => [-0.235 + 0.1085 * k, 0.057, 0.042]),
+    trk: [-0.333, 0.38, 0.01, 0.12, 0.022, 0.075], pitch: 0.0154 },
+  2: { key: 'tank2', s: 8.3, pivot: [0.2, 0.229], gr: 0.03, gz: 0.036, tur: [-0.29, 0.24, 0.205], muzzleX: 0.68, rotY: Math.PI / 2, flagPos: [-1.1, 0.8, 0.85],
+    wheels: [[-0.2168, 0.0663, 0.0587], [-0.0903, 0.0643, 0.056], [0.0213, 0.0673, 0.0576], [0.1423, 0.0658, 0.056], [0.2582, 0.0648, 0.056]],
+    trk: [-0.338, 0.377, 0.012, 0.128, 0.02, 0.14], pitch: 0.0218 },
+  3: { key: 'tank3', s: 8.9, pivot: [0.245, 0.265], gr: 0.035, gz: 0.055, tur: [-0.4, 0.27, 0.212], muzzleX: 0.706, flagPos: [-1.6, 1.3, 1.0],
+    wheels: [0, 1, 2, 3, 4, 5, 6].map((k) => [-0.2338 + 0.0865 * k, 0.062, 0.042]),
+    trk: [-0.311, 0.42, 0.015, 0.125, 0.022, 0.08], pitch: 0.0188 },
+  4: { key: 'tank4', s: 8.7, pivot: [0.17, 0.259], gr: 0.035, gz: 0.042, tur: [-0.43, 0.22, 0.212], muzzleX: 0.638, rotY: Math.PI / 2, flagPos: [-1.7, 0.9, 1.0],
+    wheels: [], trk: [-0.4, 0.4, 0.005, 0.13, 0.022, 0.05], pitch: 0.0226 },
 };
+// مسار الجنزير (شكل ملعب) — الجنزير يدور حوله بالشيدر
+function trackDist(T, x, y) {
+  const [x0, x1, yb, yt] = T, yc = (yb + yt) / 2, R = (yt - yb) / 2;
+  if (x < x0) return Math.hypot(x - x0, y - yc) - R;
+  if (x > x1) return Math.hypot(x - x1, y - yc) - R;
+  return Math.min(Math.abs(y - yt), Math.abs(y - yb));
+}
+const TRACK_GLSL = `
+uniform float uTrkOff; uniform vec4 uTrk; uniform float uTrkPitch;
+vec3 trkP(float s, out float th){ float x0=uTrk.x,x1=uTrk.y,yc=(uTrk.z+uTrk.w)*.5,R=(uTrk.w-uTrk.z)*.5,L=x1-x0,P=3.14159265*R,T=2.*L+2.*P; s=mod(s,T);
+  if(s<L){ th=0.; return vec3(x0+s,yc+R,0.); }
+  if(s<L+P){ float f=1.5707963-(s-L)/R; th=f-1.5707963; return vec3(x1+R*cos(f),yc+R*sin(f),0.); }
+  if(s<2.*L+P){ th=3.14159265; return vec3(x1-(s-L-P),yc-R,0.); }
+  float f=-1.5707963-(s-2.*L-P)/R; th=f-1.5707963; return vec3(x0+R*cos(f),yc+R*sin(f),0.); }
+float trkS(vec2 q){ float x0=uTrk.x,x1=uTrk.y,yc=(uTrk.z+uTrk.w)*.5,R=(uTrk.w-uTrk.z)*.5,L=x1-x0,P=3.14159265*R;
+  if(q.x>=x0&&q.x<=x1) return q.y>=yc ? q.x-x0 : L+P+(x1-q.x);
+  if(q.x>x1){ float a=atan(q.y-yc,q.x-x1); return L+(1.5707963-a)*R; }
+  float a=atan(q.y-yc,q.x-x0); float b=a<0.?(-1.5707963-a):(4.712389-a); return 2.*L+P+b*R; }
+`;
+function trackMaterial(base, T, pitch) {
+  const m = base.clone();
+  const u = { uTrkOff: { value: 0 }, uTrk: { value: new THREE.Vector4(T[0], T[1], T[2], T[3]) }, uTrkPitch: { value: pitch } };
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, u);
+    sh.vertexShader = TRACK_GLSL + sh.vertexShader
+      .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
+        float trS=trkS(position.xy), th0, th1; vec3 trA=trkP(trS,th0); vec3 trB=trkP(trS+mod(uTrkOff,uTrkPitch),th1);
+        float trD=th1-th0; mat2 trR=mat2(cos(trD),sin(trD),-sin(trD),cos(trD));
+        objectNormal.xy=trR*objectNormal.xy;
+        #ifdef USE_TANGENT
+        objectTangent.xy=trR*objectTangent.xy;
+        #endif`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        transformed.xy = trB.xy + trR*(position.xy-trA.xy);`);
+  };
+  m.customProgramCacheKey = () => 'glbtrack';
+  m.userData.trk = u;
+  return m;
+}
 const glbSplitCache = {};
+// هليكوبتر بلاك هوك: hub = محور المروحة الرئيسية، tail = مروحة الذيل (بوحدات المجسم)
+const HELI_GLB = { s: 11.5, hub: [0.14, 0.325], tail: [-0.64, 0.33, 0.045] };
 function glbParts(GC) {
   if (glbSplitCache[GC.key]) return glbSplitCache[GC.key];
   const [px, py] = GC.pivot, [t0, t1, ty] = GC.tur;
-  const r = splitGLB(GLB[GC.key], (x, y, z) => {
+  const r = splitGLB(GLB[GC.key], (x, y, z, bb, ed) => {
     if (x > px && Math.abs(y - py) < GC.gr && Math.abs(z) < GC.gz) return 'gun';
+    const zmax = Math.max(-bb.min.z, bb.max.z), side = Math.abs(z) > 0.5 * zmax;
+    if (Math.abs(z) > 0.72 * zmax && GC.wheels && ed < 0.035 && y < GC.trk[5]) for (let i = 0; i < GC.wheels.length; i++) { const w = GC.wheels[i]; if (Math.hypot(x - w[0], y - w[1]) < w[2] * 0.93) return 'w' + i; }
+    if (side && GC.trk && ed < 0.03 && y < GC.trk[5] && Math.abs(trackDist(GC.trk, x, y)) < GC.trk[4]) return 'track';
     if (x > t0 && x < t1 && y > ty) return 'turret';
     return 'hull';
   }, GC.rotY || 0);
@@ -364,12 +417,25 @@ function applyTankGLB(GC, g, turret, gunPivot, muzzle, ups, wheels, tint) {
   const S = GC.s;
   const add = (geom, parent, ox, oy) => { if (!geom) return; const mm = new THREE.Mesh(geom, m); mm.scale.setScalar(S); mm.position.set(-ox, -oy, 0); mm.userData.keep = true; mm.castShadow = mm.receiveShadow = true; parent.add(mm); };
   add(sp.parts.hull, g, 0, 0);
+  // عجلات تدور
+  (GC.wheels || []).forEach((w, i) => {
+    const geom = sp.parts['w' + i]; if (!geom) return;
+    const piv = new THREE.Group(); piv.position.set(w[0] * S, w[1] * S, 0); piv.userData.r = w[2] * S; g.add(piv); wheels.push(piv);
+    const mm = new THREE.Mesh(geom, m); mm.scale.setScalar(S); mm.position.set(-w[0] * S, -w[1] * S, 0); mm.userData.keep = true; mm.castShadow = mm.receiveShadow = true; piv.add(mm);
+  });
+  // الجنزير يتحرك
+  let track = null;
+  if (sp.parts.track) {
+    const tm = trackMaterial(m, GC.trk, GC.pitch);
+    const mm = new THREE.Mesh(sp.parts.track, tm); mm.scale.setScalar(S); mm.userData.keep = true; mm.castShadow = mm.receiveShadow = true; mm.frustumCulled = false; g.add(mm);
+    track = tm.userData.trk;
+  }
   add(sp.parts.turret, turret, turret.position.x, turret.position.y);
   const px = GC.pivot[0] * S, py = GC.pivot[1] * S;
   gunPivot.position.set(px - turret.position.x, py - turret.position.y, 0);
   add(sp.parts.gun, gunPivot, px, py);
   muzzle.position.set(GC.muzzleX * S - px + 0.1, 0, 0);
-  return gunPivot.position.x;
+  return { gunX: gunPivot.position.x, track, S };
 }
 
 function stadium(x0, x1, y0, y1) {
@@ -537,10 +603,11 @@ function buildFamily(fi, paint, opts) {
   }
   let flagPos = [fi === 0 ? -1.3 : -2.3, (fi === 0 ? 0.8 : 0.9) + 0.6, fi === 0 ? 0.85 : 1.05];
   const GC = TANK_GLB[fi];
-  if (GC && GLB[GC.key]) { const gx = applyTankGLB(GC, g, turret, gunPivot, muzzle, ups, wheels, opts.tint); if (gx != null) { gunX = gx; flagPos = GC.flagPos; } }
+  let glbTrack = null;
+  if (GC && GLB[GC.key]) { const r = applyTankGLB(GC, g, turret, gunPivot, muzzle, ups, wheels, opts.tint); if (r) { gunX = r.gunX; flagPos = GC.flagPos; if (r.track) glbTrack = { u: r.track, S: r.S }; } }
   shadowAll(g);
   bake(g);
-  return { group: g, turret, gunPivot, muzzle, breech, wheels, ups, gunBaseX: gunX, flagPos };
+  return { group: g, turret, gunPivot, muzzle, breech, wheels, ups, gunBaseX: gunX, flagPos, glbTrack };
 }
 
 export function buildTankHD(scheme = 'player', seed = 3) {
@@ -589,7 +656,7 @@ export function buildTankHD(scheme = 'player', seed = 3) {
     setFacing(f) { body.rotation.y = f > 0 ? 0 : Math.PI; },
     setAim(a) { fams[cur].gunPivot.rotation.z = a; },
     recoil(k) { fams[cur].gunPivot.position.x = fams[cur].gunBaseX - Math.min(k, 1) * 0.45; },
-    spinWheels(d) { for (const w of fams[cur].wheels) w.rotation.z -= d / 0.4; },
+    spinWheels(d) { const f = fams[cur]; for (const w of f.wheels) w.rotation.z -= d / (w.userData.r || 0.4); if (f.glbTrack) f.glbTrack.u.uTrkOff.value += d / f.glbTrack.S; },
     waveFlag(t, speed) {
       const f = fams[cur]; if (!f || !f.cloth) return;
       const p = f.cloth.cg.attributes.position, cb = f.cloth.base, k = 0.5 + Math.min(1, Math.abs(speed) / 6);
@@ -645,6 +712,7 @@ export function buildHeliHD(scheme = 'desert', idx = 0) {
     const wh = M(geo('hwheel', () => { const c = new THREE.CylinderGeometry(0.28, 0.28, 0.2, 14); c.rotateX(Math.PI / 2); return c; }), rubber, 2.2, -1.45, z * 1.15, body); void wh;
   }
   M(geo('hwheel'), rubber, -7.6, 0.22, 0, body);
+  const procHull = [...body.children];
   // main rotor
   const rotor = new THREE.Group(); rotor.position.set(0.3, 2.45, 0); body.add(rotor);
   M(CYL(0.28, 0.28, 0.22, 12), steel, 0, 0, 0, rotor);
@@ -683,6 +751,19 @@ export function buildHeliHD(scheme = 'desert', idx = 0) {
     }
   }
   disc.userData.keep = true;
+  // المجسم الاحترافي (GLB) بدل البدن المرسوم — المراوح تبقى بالكود وتدور
+  if (GLB.heli0) {
+    const H = HELI_GLB, sp = glbSplitCache.heli0 || (glbSplitCache.heli0 = splitGLB(GLB.heli0, () => 'body'));
+    if (sp) {
+      for (const o of procHull) body.remove(o);
+      for (const o of [...body.children]) if (o.isMesh && o.geometry.type === 'PlaneGeometry') body.remove(o); // شارات العلم المسطحة
+      let m = sp.material;
+      const tint = scheme === 'player' ? null : c[0];
+      if (tint) m = glbTintCache['heli' + tint] || (glbTintCache['heli' + tint] = (() => { const q = m.clone(); q.color = new THREE.Color(1, 1, 1).lerp(new THREE.Color(tint), 0.6).multiplyScalar(1.25); return q; })());
+      const mm = new THREE.Mesh(sp.parts.body, m); mm.scale.setScalar(H.s); mm.position.set(rotor.position.x - H.hub[0] * H.s, rotor.position.y - H.hub[1] * H.s, 0); mm.userData.keep = true; body.add(mm);
+      tailRotor.position.set(mm.position.x + H.tail[0] * H.s, mm.position.y + H.tail[1] * H.s, H.tail[2] * H.s);
+    }
+  }
   shadowAll(root); disc.castShadow = false;
   bake(root);
   return { root, body, rotor, tailRotor, muzzle, w: 9, h: 2.6, ups };
