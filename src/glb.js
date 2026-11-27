@@ -64,5 +64,30 @@ export function splitGLB(scene, classify, rotY = 0) {
 }
 
 // قائمة المجسمات المتوفرة باللعبة — كل ما يوصل مجسم جديد يضاف هنا
-export const GLB_FILES = { tank0: 'tank_t62.glb', tank1: 'tank_abrams.glb', tank2: 'tank_t90.glb', tank3: 'tank_sep.glb', tank4: 'tank_future.glb', heli0: 'heli_blackhawk.glb', heli1: 'heli_attack.glb', heli2: 'heli_stealth.glb' };
+export const GLB_FILES = { tank0: 'tank_t62.glb', tank1: 'tank_abrams.glb', tank2: 'tank_t90.glb', tank3: 'tank_sep.glb', tank4: 'tank_future.glb', heli0: 'heli_blackhawk.glb', heli1: 'heli_attack.glb', heli2: 'heli_stealth.glb', truck: 'car_truck.glb' };
 export function loadAllGLB() { return Promise.all(Object.entries(GLB_FILES).map(([k, f]) => loadGLB(k, f))); }
+
+// مركبة بعجلات (شاحنة، سيارة…) — يضيف الجسم ويفصل العجلات حتى تدور
+// cfg: { s, rotY, wheels: [[x, y, r], ...], wz: نسبة |z| الدنيا للعجلات, oy: إزاحة عمودية }
+const vehCache = {}, vehTint = {};
+export function glbVehicle(key, cfg, parent, tint) {
+  if (!GLB[key]) return null;
+  const sp = vehCache[key] || (vehCache[key] = splitGLB(GLB[key], (x, y, z, bb) => {
+    const zmax = Math.max(-bb.min.z, bb.max.z);
+    if (Math.abs(z) > (cfg.wz || 0.5) * zmax) for (let i = 0; i < cfg.wheels.length; i++) { const w = cfg.wheels[i]; if (Math.hypot(x - w[0], y - w[1]) < w[2]) return 'w' + i; }
+    return 'body';
+  }, cfg.rotY || 0));
+  if (!sp) return null;
+  let m = sp.material;
+  if (tint) m = vehTint[key + tint] || (vehTint[key + tint] = (() => { const q = m.clone(); q.color = new THREE.Color(1, 1, 1).lerp(new THREE.Color(tint), 0.6).multiplyScalar(1.2); return q; })());
+  const S = cfg.s, oy = cfg.oy || 0;
+  const mk = (g) => { const mm = new THREE.Mesh(g, m); mm.scale.setScalar(S); mm.castShadow = mm.receiveShadow = true; mm.userData.keep = true; return mm; };
+  const bodyMesh = mk(sp.parts.body); bodyMesh.position.y = oy; parent.add(bodyMesh);
+  const wheels = [];
+  cfg.wheels.forEach((w, i) => {
+    if (!sp.parts['w' + i]) return;
+    const piv = new THREE.Group(); piv.position.set(w[0] * S, w[1] * S + oy, 0); piv.userData.r = w[2] * S; parent.add(piv);
+    const mm = mk(sp.parts['w' + i]); mm.position.set(-w[0] * S, -w[1] * S, 0); piv.add(mm); wheels.push(piv);
+  });
+  return { mesh: bodyMesh, wheels };
+}

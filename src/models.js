@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { glbVehicle } from './glb.js';
 import { camoTexture, plainTexture, treadTexture, wheelTexture, wallTexture, crateTexture, flagTexture, rng, iraqFlagTexture } from './textures.js';
 
 const matCache = new Map();
@@ -413,6 +414,7 @@ export function buildJeep(scheme = 'desert') {
   return { root, body, wheels, gunPivot, muzzle, w: 4.8, h: 2.3 };
 }
 
+const TRUCK_GLB = { s: 6.2, rotY: Math.PI / 2, wz: 0.55, wheels: [[-0.3652, 0.0913, 0.094], [-0.1682, 0.0918, 0.094], [0.3128, 0.0913, 0.094]] };
 export function buildTruck(scheme = 'desert') {
   const colors = TANK_SCHEMES[scheme] || TANK_SCHEMES.desert;
   const paint = mat('truck-' + scheme, () => { const t = camoTexture(colors, 31, 0.6); t.repeat.set(0.3, 0.3); return std(0xffffff, 0.7, 0.3, { map: t }); });
@@ -433,6 +435,11 @@ export function buildTruck(scheme = 'desert') {
   for (const x of [-2.2, -1.1, 2.3]) for (const z of [-1, 1]) { const w = wheelMesh(0.55, 0.42); w.position.set(x, 0.55, z * 1.0); body.add(w); wheels.push(w); }
   shadowAll(root);
   const muzzle = new THREE.Object3D(); muzzle.position.set(-2.8, 1.5, 0); body.add(muzzle);
+  // المجسم الاحترافي (GLB) — العجلات الست تدور
+  const tint = { desert: null, enemyGreen: '#6b7350', enemyGrey: '#7c807a', winter: '#d8dad6', urban: '#8a8a86' }[scheme];
+  const tg = new THREE.Group();
+  const v = glbVehicle('truck', TRUCK_GLB, tg, tint);
+  if (v) { for (const o of [...body.children]) if (o !== muzzle) body.remove(o); body.add(tg); wheels.length = 0; wheels.push(...v.wheels); muzzle.position.set(-3.2, 1.5, 0); }
   return { root, body, wheels, muzzle, w: 6.6, h: 3.0 };
 }
 
