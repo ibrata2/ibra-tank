@@ -168,7 +168,7 @@ function buildWeapon(kind, m) {
 }
 
 const soldierProto = new Map();
-onGLB((k) => { if (/^sold/.test(k)) soldierProto.clear(); }); // أول ما توصل مجسمات الجنود نعيد بناء النماذج
+onGLB((k) => { if (/^(sold|en_)/.test(k)) soldierProto.clear(); }); // أول ما توصل مجسمات الجنود نعيد بناء النماذج
 export function buildSoldierHD(typeKey, uniformKey = 'desert', seed = 1, friendly = false, opts = {}) {
   const key = [typeKey, uniformKey, friendly ? 1 : 0, opts.tier ?? 1, seed % 4, opts.drone === false ? 0 : 1, opts.armor ? 1 : 0].join('|');
   if (!soldierProto.has(key)) soldierProto.set(key, buildSoldierRaw(typeKey, uniformKey, seed % 4 + 1, friendly, opts));
@@ -250,13 +250,13 @@ function buildSoldierGLB(P, S, typeKey, friendly, tier, poses, opts) {
   return { root, body };
 }
 function buildSoldierRaw(typeKey, uniformKey, seed, friendly, opts) {
-  const sk = friendly ? 'sold' + Math.max(0, Math.min(4, opts.tier ?? 1)) : null;
+  const sk = friendly ? 'sold' + Math.max(0, Math.min(4, opts.tier ?? 1)) : 'en_' + ({ sniper: 'sniper', officer: 'officer', heavy: 'heavy' }[typeKey] || 'fighter');
   if (sk && GLB[sk]) return buildSoldierRawGLB(typeKey, uniformKey, seed, friendly, opts, sk);
   return buildSoldierRawProc(typeKey, uniformKey, seed, friendly, opts);
 }
 function buildSoldierRawGLB(typeKey, uniformKey, seed, friendly, opts, sk) {
   const T = SOLDIER_TYPES[typeKey] || SOLDIER_TYPES.rifleman;
-  const tier = Math.max(0, Math.min(4, opts.tier ?? 1));
+  const tier = friendly ? Math.max(0, Math.min(4, opts.tier ?? 1)) : 0;
   const P = soldierGLB(sk), S = 1.86 / P.H;
   const W = T.weapon;
   const poses = { rifle: [0.35, 1.55, 0.75, 1.05], mg: [0.25, 1.5, 0.7, 0.95], rpg: [0.95, 1.6, 1.35, 0.7], sniper: [0.35, 1.55, 0.8, 1.05], pistol: [1.25, 0.25, 1.15, 0.25] }[W] || [0.35, 1.55, 0.75, 1.05];
@@ -269,7 +269,7 @@ function buildSoldierRawGLB(typeKey, uniformKey, seed, friendly, opts, sk) {
   else if (W === 'pistol') weapon.position.set(0.55, 1.36, -0.02);
   else weapon.position.set(0.32, 1.29, -0.05);
   body.add(weapon);
-  if (tier >= 3 && opts.drone !== false) { const dr = buildDrone(0.35); dr.position.set(-0.3, 2.6, 0.4); root.add(dr); root.userData.drone = dr; }
+  if (friendly && tier >= 3 && opts.drone !== false) { const dr = buildDrone(0.35); dr.position.set(-0.3, 2.6, 0.4); root.add(dr); root.userData.drone = dr; }
   shadowAll(root); bake(root);
   return { root, warheadNames };
 }
