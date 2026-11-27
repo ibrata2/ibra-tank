@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { glbVehicle } from './glb.js';
+import { glbNature, palmCrown } from './trees.js';
 import { camoTexture, plainTexture, treadTexture, wheelTexture, wallTexture, crateTexture, flagTexture, rng, iraqFlagTexture } from './textures.js';
 
 const matCache = new Map();
@@ -10,7 +11,7 @@ export function mat(key, make) {
 const std = (color, rough = 0.8, metal = 0.1, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra });
 
 function shadowAll(obj) {
-  obj.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  obj.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = !o.userData.noReceive; } });
   return obj;
 }
 
@@ -493,6 +494,7 @@ export function buildHeli(scheme = 'enemyGreen') {
 
 // ------------------------------------------------------------------ PROPS
 export function buildProp(kind, r, biome) {
+  if (kind === 'tree' || kind === 'pine' || kind === 'rock' || kind === 'bush') { const n = glbNature(kind, r, biome); if (n) return n; } // مجسمات GLB للطبيعة
   const g = new THREE.Group();
   if (kind === 'palm') {
     const trunkM = mat('palmtrunk', () => std('#6b5136', 0.95, 0));
@@ -503,21 +505,10 @@ export function buildProp(kind, r, biome) {
       const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.22 - i * 0.012, 0.28 - i * 0.012, h / 7, 7), trunkM);
       x += lean * h / 7; y += h / 7; seg.position.set(x, y - h / 14, 0); seg.rotation.z = -lean; g.add(seg);
     }
-    const leafGeo = new THREE.PlaneGeometry(4.2, 0.9, 8, 1);
-    const lp = leafGeo.attributes.position;
-    for (let k = 0; k < lp.count; k++) {
-      const lx = lp.getX(k) + 2.1, w = lp.getY(k) * (1 - lx / 4.2 * 0.8);
-      lp.setXYZ(k, lx, -0.09 * lx * lx + w * 0.55, w * 0.85);
-    }
-    leafGeo.computeVertexNormals();
-    for (let i = 0; i < 12; i++) {
-      const leaf = new THREE.Mesh(leafGeo, leafM);
-      leaf.position.set(x, y, 0);
-      leaf.rotation.y = i / 12 * Math.PI * 2 + r() * 0.3;
-      leaf.rotation.z = 0.35 + r() * 0.4;
-      leaf.rotation.x = (r() - 0.5) * 0.8;
-      g.add(leaf);
-    }
+    // راس الجذع (الكرب) + تاج السعف والتمر بالكود — السعف يتحرك مع الهوا
+    const head = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.2, 0.9, 8), trunkM); head.position.set(x, y - 0.3, 0); head.rotation.z = -lean; g.add(head);
+    const crown = palmCrown(r, h / 8.5 * (0.92 + r() * 0.2)); crown.position.set(x, y + 0.05, 0); g.add(crown);
+    void leafM;
   } else if (kind === 'tree') {
     const trunkM = mat('trunk', () => std('#4e3a26', 0.95, 0));
     const leafM = mat('treeleaf' + biome.id, () => std(biome.leaf || '#4d6e2a', 0.9, 0));
