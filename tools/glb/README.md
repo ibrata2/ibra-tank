@@ -10,6 +10,13 @@ python3 tools/glb/rebake.py raw.glb out.glb --tris 3500 --tex 1024 --ground 0.02
 npx @gltf-transform/cli webp out.glb src/assets/name.glb --quality 88
 ```
 
+للبنايات والأشياء اللي بيها تفاصيل رفيعة (شبابيك حديد، درابزين) التبسيط بـ meshopt يطلع أنظف:
+
+```bash
+node tools/glb/decim.mjs raw.glb low.ply 14000 0.02        # يحتاج @gltf-transform/core و meshoptimizer
+python3 tools/glb/rebake.py raw.glb out.glb --lowmesh low.ply --tex 2048
+```
+
 خيارات مفيدة:
 
 - `--tris N` عدد المثلثات المطلوب، و `--tex N` حجم النسيج.

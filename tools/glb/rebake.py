@@ -20,6 +20,8 @@ ap.add_argument('--metal', type=float, default=0.0)
 ap.add_argument('--min-comp', type=int, default=0, help='drop connected components with fewer faces (after decimation)')
 ap.add_argument('--drop-floating', type=float, default=0.0, help='drop components whose lowest point is above this fraction of height')
 ap.add_argument('--min-comp-hi', type=int, default=0, help='drop high-poly components with fewer faces')
+ap.add_argument('--lowmesh', default='', help='use this pre-decimated mesh (PLY, Y-up) instead of decimating here')
+ap.add_argument('--samples', type=float, default=5e6, help='surface sample points on the original used as the colour source')
 ap.add_argument('--bake-mr', action='store_true', help='also bake metallicRoughness texture')
 a = ap.parse_args()
 
@@ -35,6 +37,7 @@ def sample(tex, uv):
     x = np.clip((uv[:, 0] % 1.0) * (w - 1), 0, w - 1); y = np.clip((1.0 - (uv[:, 1] % 1.0)) * (h - 1), 0, h - 1)
     return tex[y.round().astype(int), x.round().astype(int)]
 vcol = sample(img, uv).astype(np.float32)
+VN = np.asarray(m.vertex_normals, np.float32)  # نواظم المجسم الأصلي — حتى اللون ما ينأخذ من الوجه الداخلي للجدار
 mr = None
 if a.bake_mr and getattr(mat, 'metallicRoughnessTexture', None) is not None:
     mr = sample(np.asarray(mat.metallicRoughnessTexture.convert('RGB')), uv).astype(np.float32)
@@ -66,9 +69,15 @@ if a.drop_floating > 0 or a.min_comp_hi > 0:
     print('components', nc, 'dropped', int(bad.sum()), 'faces dropped', int(bad[fl].sum()))
     Fw = Fw[~bad[fl]]
 print('welded', len(Vw), 'verts', len(Fw), 'faces')
-tgt = min(a.tris, len(Fw))
-Vl, Fl = fast_simplification.simplify(Vw.astype(np.float32), Fw.astype(np.int32), target_count=tgt, agg=a.agg)
-Vl = np.asarray(Vl, np.float64); Fl = np.asarray(Fl, np.int64)
+if a.lowmesh:
+    lm = trimesh.load(a.lowmesh, process=False); Vl = np.asarray(lm.vertices, np.float64); Fl = np.asarray(lm.faces, np.int64)
+    fyl = Vl[Fl][:, :, 1]; kl = np.ones(len(Fl), bool)
+    if a.ground > 0: kl &= ~(fyl.max(1) < y0 + a.ground * H)
+    Fl = Fl[kl]
+else:
+    tgt = min(a.tris, len(Fw))
+    Vl, Fl = fast_simplification.simplify(Vw.astype(np.float32), Fw.astype(np.int32), target_count=tgt, agg=a.agg)
+    Vl = np.asarray(Vl, np.float64); Fl = np.asarray(Fl, np.int64)
 Fl = Fl[(Fl[:, 0] != Fl[:, 1]) & (Fl[:, 1] != Fl[:, 2]) & (Fl[:, 0] != Fl[:, 2])]
 low = trimesh.Trimesh(Vl, Fl, process=False)
 if a.min_comp > 0:
@@ -89,12 +98,29 @@ Vn = Vl[vmap]; Nn = Nl[vmap]; Fi = np.asarray(Fi, np.int64); uvs = np.asarray(uv
 print('atlas', atlas.width, atlas.height, 'verts', len(Vn))
 
 # bake: rasterize triangles in uv space, look up nearest raw vertex colour
-tree = cKDTree(V)
+# مصدر اللون: نقاط عشوائية موزعة على سطح المجسم الأصلي حسب المساحة (المثلثات الكبيرة تاخذ نقاط أكثر)،
+# فاللون يطلع صحيح حتى على الجدران المستوية اللي رؤوسها قليلة
+F0 = np.asarray(m.faces, np.int64)
+tri0 = V[F0]; fnr = np.cross(tri0[:, 1] - tri0[:, 0], tri0[:, 2] - tri0[:, 0]); area = np.linalg.norm(fnr, axis=1) * 0.5
+fnr = (fnr / (2 * area[:, None] + 1e-20)).astype(np.float32)
+rs = np.random.default_rng(7); NS = int(a.samples)
+fi_s = rs.choice(len(F0), size=NS, p=area / area.sum())
+r1 = np.sqrt(rs.random(NS)); r2 = rs.random(NS); bw = np.stack([1 - r1, r1 * (1 - r2), r1 * r2], 1)
+SP = np.einsum('nk,nkj->nj', bw, tri0[fi_s]).astype(np.float32)
+SUV = np.einsum('nk,nkj->nj', bw, uv[F0[fi_s]])
+vcol = sample(img, SUV).astype(np.float32)
+if mr is not None: mr = sample(np.asarray(mat.metallicRoughnessTexture.convert('RGB')), SUV).astype(np.float32)
+VN = fnr[fi_s]
+del tri0
+tree = cKDTree(SP)
 tex = np.zeros((T, T, 3), np.float32); filled = np.zeros((T, T), bool)
 texmr = np.zeros((T, T, 3), np.float32) if mr is not None else None
 px = uvs[:, 0] * T; py = (1.0 - uvs[:, 1]) * T
-rows, cols, pts = [], [], []
+rows, cols, pts, nrm = [], [], [], []
+fn_all = np.cross(Vn[Fi[:, 1]] - Vn[Fi[:, 0]], Vn[Fi[:, 2]] - Vn[Fi[:, 0]]); fn_all /= (np.linalg.norm(fn_all, axis=1, keepdims=True) + 1e-12)
+fi_ = -1
 for f in Fi:
+    fi_ += 1
     x0, x1_, x2 = px[f]; yA, yB, yC = py[f]
     minx = max(int(np.floor(min(x0, x1_, x2) - 1)), 0); maxx = min(int(np.ceil(max(x0, x1_, x2) + 1)), T - 1)
     miny = max(int(np.floor(min(yA, yB, yC) - 1)), 0); maxy = min(int(np.ceil(max(yA, yB, yC) + 1)), T - 1)
@@ -110,9 +136,13 @@ for f in Fi:
     ins = (b0 >= -e) & (b1 >= -e) & (b2 >= -e)
     if not ins.any(): continue
     bb = np.stack([b0[ins], b1[ins], b2[ins]], 1); bb = np.clip(bb, 0, 1); bb /= bb.sum(1, keepdims=True)
-    pts.append(bb @ Vn[f]); rows.append((gy[ins] - 0.5).astype(int)); cols.append((gx[ins] - 0.5).astype(int))
-rows = np.concatenate(rows); cols = np.concatenate(cols); pts = np.concatenate(pts)
-_, nn = tree.query(pts, workers=-1)
+    pts.append(bb @ Vn[f]); rows.append((gy[ins] - 0.5).astype(int)); cols.append((gx[ins] - 0.5).astype(int)); nrm.append(np.repeat(fn_all[fi_][None], len(bb), 0))
+rows = np.concatenate(rows); cols = np.concatenate(cols); pts = np.concatenate(pts); nrm = np.concatenate(nrm).astype(np.float32)
+K = 4
+dd, nk = tree.query(pts, k=K, workers=-1)
+dots = np.einsum('nkj,nj->nk', VN[nk], nrm)
+score = dd * np.where(dots > 0.15, 1.0, 6.0)  # نفضل رأس وجهه بنفس اتجاه السطح
+nn = nk[np.arange(len(pts)), score.argmin(1)]
 tex[rows, cols] = vcol[nn]; filled[rows, cols] = True
 if mr is not None: texmr[rows, cols] = mr[nn]
 # dilate to fill gaps (mip-safe)

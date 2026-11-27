@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { canvasTex, rng } from './textures.js';
 import { buildProp, buildFlag, mat } from './models.js';
-import { glbVehicle } from './glb.js';
+import { glbVehicle, GLB, splitGLB } from './glb.js';
 
 const std = (color, rough = 0.85, metal = 0.05, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra });
 const AR_FONT = 'Tahoma, "Segoe UI", "Noto Kufi Arabic", "Noto Sans Arabic", Arial, sans-serif';
@@ -276,7 +276,45 @@ const hadbaTex = () => cached('hadba', () => canvasTex(256, 512, (g, w, h) => {
 }, { wrap: true }));
 
 // ============================================================ BUILDINGS
+// ---------- بيوت وعمارات من مجسمات GLB (الإحداثيات بوحدات المجسم)
+// signs = أماكن لوحات المحلات الفارغة بالمجسم — نحط عليها الأسماء العراقية بالكود
+const HOUSE_GLB = {
+  shan: { key: 'b_shan', w: [9.5, 11.5], roof: 0.56 },
+  shops: { key: 'b_shops', w: [11.5, 13.5], roof: 0.72, signs: [-0.148, 0.0375, 0.223], signY: 0.155, signW: 0.176, signH: 0.04, signZ: 0.269 },
+};
+const TINTS = [null, '#f3e6c8', '#e2ddd2', '#f0d9b0'];
+const houseParts = {}, houseTint = {};
+function glbHouse(r, o) {
+  if (o.damaged) return null; // المتضررة تبقى بالكود لحد ما يوصل مجسمها
+  const floors = o.floors ?? 2;
+  let kind = null;
+  if (o.shanasheel && floors >= 2 && GLB.b_shan) kind = 'shan';
+  else if (GLB.b_shops && ((o.shop && floors >= 2 && r() < 0.75) || (!o.shop && floors >= 3 && r() < 0.6))) kind = 'shops';
+  if (!kind) return null;
+  const C = HOUSE_GLB[kind];
+  const gkey = o.far && GLB[C.key + '_far'] ? C.key + '_far' : C.key; // الصف الورا البعيد ياخذ نسخة أخف
+  let P = houseParts[gkey];
+  if (!P) { const sp = splitGLB(GLB[gkey], () => 'all'); if (!sp) return null; sp.parts.all.computeBoundingBox(); P = houseParts[gkey] = { geom: sp.parts.all, material: sp.material, bb: sp.parts.all.boundingBox }; }
+  const bb = P.bb, gw = bb.max.x - bb.min.x, S = (C.w[0] + r() * (C.w[1] - C.w[0])) / gw, cx = (bb.min.x + bb.max.x) / 2, cz = (bb.min.z + bb.max.z) / 2;
+  const tint = TINTS[Math.floor(r() * TINTS.length)];
+  const m = tint ? (houseTint[gkey + tint] || (houseTint[gkey + tint] = (() => { const q = P.material.clone(); q.color = new THREE.Color(tint); return q; })())) : P.material;
+  const g = new THREE.Group();
+  const mesh = new THREE.Mesh(P.geom, m); mesh.scale.setScalar(S); mesh.position.set(-cx * S, -bb.min.y * S, -cz * S); mesh.userData.keep = true; g.add(mesh);
+  if (kind === 'shan' && r() < 0.5) { mesh.scale.x = -S; mesh.position.x = cx * S; } // نسخة معكوسة للتنويع
+  if (C.signs) { // لوحات المحلات
+    const names = [o.shop || pick(r, SHOPS), pick(r, SHOPS), pick(r, SHOPS)];
+    C.signs.forEach((sx, i) => {
+      const sh = names[i === 1 ? 0 : i === 0 ? 1 : 2];
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(C.signW * S, C.signH * S), signMat(signTex(sh[0], sh[1], sh[2]), !!o.night));
+      sign.position.set((sx - cx) * S, (C.signY - bb.min.y) * S, (C.signZ - cz) * S + 0.03); g.add(sign);
+    });
+  }
+  g.userData.w = gw * S; g.userData.d = (bb.max.z - bb.min.z) * S; g.userData.h = C.roof * S;
+  return shadow(g);
+}
+
 export function iraqHouse(r, o = {}) {
+  const gh = glbHouse(r, o); if (gh) return gh;
   const g = new THREE.Group();
   const floors = o.floors ?? (1 + Math.floor(r() * 3));
   const w = o.w ?? (6 + Math.floor(r() * 3) * 2), d = o.d ?? (6 + r() * 3), H = floors * 4;

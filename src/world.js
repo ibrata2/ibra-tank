@@ -309,7 +309,7 @@ export class World {
       // second row: taller buildings
       for (let x2 = -60; x2 < length + 140;) {
         const nearLM = lmXs.some(([lx, rad]) => Math.abs(x2 - lx) < rad);
-        const h = iraqHouse(r, { floors: (nearLM ? 1 : 2) + Math.floor(r() * (nearLM ? 2 : 4)), night: region.night, damaged: damaged && r() < 0.6, shanasheel: F.has('shanasheel') && r() < 0.3 });
+        const h = iraqHouse(r, { far: true, floors: (nearLM ? 1 : 2) + Math.floor(r() * (nearLM ? 2 : 4)), night: region.night, damaged: damaged && r() < 0.6, shanasheel: F.has('shanasheel') && r() < 0.3 });
         const w = h.userData.w;
         if (!isReserved(x2 + w / 2)) { const z = -(19 + r() * 6); h.position.set(x2 + w / 2, this.groundY(x2 + w / 2, z) - 0.3, z); bake(h); this.group.add(h); }
         x2 += w + 1 + r() * 6;
