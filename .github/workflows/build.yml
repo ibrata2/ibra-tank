@@ -1,17 +1,23 @@
-name: Build Windows installer
+name: Build & Release (Windows · Android · iPhone)
 
+# كل دفع على main يبني: مثبّت ويندوز + APK أندرويد + IPA آيفون (بدون توقيع)
+# وينشرهم بالإصدارات حسب رقم النسخة بـ package.json
 on:
   push:
     branches: [main]
-    paths: ['src/**', 'main.js', 'preload.js', 'package.json', 'build/**', 'installer/**', '.github/workflows/build.yml']
+    paths: ['src/**', 'main.js', 'preload.js', 'package.json', 'build/**', 'installer/**', 'mobile/**', 'assets/**', 'scripts/**', 'capacitor.config.json', '.github/workflows/build.yml']
     tags: ['v*']
   workflow_dispatch:
 
 permissions:
   contents: write
 
+env:
+  CAP_VER: '6'
+
 jobs:
-  build:
+  # ---------------- ويندوز ----------------
+  windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,31 +34,154 @@ jobs:
           set -o pipefail
           npm run bundle 2>&1 | tee build.log
           npx electron-builder --win dir --x64 2>&1 | tee -a build.log || { tail -n 25 build.log | while IFS= read -r l; do echo "::error::$l"; done; exit 1; }
+      - name: Find or install NSIS
+        shell: bash
+        run: |
+          find_nsis() {
+            for p in "$(command -v makensis 2>/dev/null)" "/c/Program Files (x86)/NSIS/makensis.exe" "/c/Program Files/NSIS/makensis.exe" "/c/Program Files (x86)/NSIS/Bin/makensis.exe" "$PWD/nsis-portable/makensis.exe"; do
+              if [ -n "$p" ] && [ -f "$p" ]; then echo "$p"; return 0; fi
+            done
+            return 1
+          }
+          M=$(find_nsis) || true
+          if [ -z "$M" ]; then choco install nsis -y --no-progress || true; M=$(find_nsis) || true; fi
+          if [ -z "$M" ]; then
+            # احتياط: نسخة NSIS المحمولة
+            curl -fsSL --retry 3 -o nsis.zip "https://downloads.sourceforge.net/project/nsis/NSIS%203/3.10/nsis-3.10.zip" && 7z x -y nsis.zip -onsis-x > /dev/null && mv nsis-x/nsis-3.10 nsis-portable || true
+            M=$(find_nsis) || true
+          fi
+          if [ -z "$M" ]; then
+            echo "::error title=NSIS::makensis not found. choco: $(choco list nsis 2>&1 | tail -n 3 | tr '\n' ' ') | dirs: $(ls -d /c/Program\ Files*/NSIS* 2>&1 | tr '\n' ' ')"
+            exit 1
+          fi
+          echo "MAKENSIS=$M" >> "$GITHUB_ENV"; echo "NSIS: $M"
       - name: Build installer (NSIS)
         shell: bash
         run: |
           set -o pipefail
           V=$(node -p "require('./package.json').version")
-          MAKENSIS="/c/Program Files (x86)/NSIS/makensis.exe"
-          if [ ! -f "$MAKENSIS" ]; then choco install nsis -y --no-progress; fi
           cd installer
           "$MAKENSIS" -V2 -DVERSION=$V -DSRCDIR="..\dist\win-unpacked" -DOUTFILE="..\dist\IBRA-TANK-Setup-$V.exe" installer.nsi 2>&1 | tee nsis.log || { tail -n 25 nsis.log | while IFS= read -r l; do echo "::error::$l"; done; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
-          name: IBRA-TANK-Setup
+          name: windows
           path: dist/*.exe
+
+  # ---------------- أندرويد ----------------
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
       - name: Read version
         id: ver
-        shell: bash
-        run: echo "v=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+        run: echo "v=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Build the game for mobile (www)
+        env: { ELECTRON_SKIP_BINARY_DOWNLOAD: 1 }
+        run: bash mobile/run.sh "web build" bash -c "npm ci && npm run bundle:mobile"
+      - name: Install Capacitor
+        env: { ELECTRON_SKIP_BINARY_DOWNLOAD: 1 }
+        run: bash mobile/run.sh "capacitor install" npm install --save --no-package-lock @capacitor/cli@$CAP_VER @capacitor/core@$CAP_VER @capacitor/android@$CAP_VER @capacitor/app@$CAP_VER @capacitor/status-bar@$CAP_VER @capacitor/assets@3
+      - run: bash mobile/run.sh "cap add android" npx cap add android
+      - run: bash mobile/run.sh "icons" npx capacitor-assets generate --android --iconBackgroundColor '#160f06' --splashBackgroundColor '#000000'
+      - run: bash mobile/run.sh "patch android" bash mobile/patch-android.sh "${{ steps.ver.outputs.v }}"
+      - run: bash mobile/run.sh "cap sync android" npx cap sync android
+      - name: Check plugins are included
+        run: cat android/app/src/main/assets/capacitor.plugins.json && grep -q '@capacitor/status-bar' android/app/src/main/assets/capacitor.plugins.json && grep -q '@capacitor/app' android/app/src/main/assets/capacitor.plugins.json
+      - name: Signing key
+        run: |
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_B64 }}" ]; then echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > $RUNNER_TEMP/ks.keystore; else cp mobile/android-release.keystore $RUNNER_TEMP/ks.keystore; fi
+      - name: Build APK
+        env:
+          KS_FILE: ${{ runner.temp }}/ks.keystore
+          KS_PASS: ${{ secrets.ANDROID_KS_PASS || 'ibratank2026' }}
+          KS_ALIAS: ${{ secrets.ANDROID_KS_ALIAS || 'ibratank' }}
+        run: chmod +x android/gradlew && bash mobile/run.sh "gradle" bash -c "cd android && ./gradlew assembleRelease --no-daemon"
+      - name: Verify APK
+        run: |
+          mkdir -p out && cp android/app/build/outputs/apk/release/app-release.apk "out/IBRA-TANK-${{ steps.ver.outputs.v }}-android.apk"
+          ls -la out
+          set +e +o pipefail
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+          $BT/apksigner verify --print-certs out/*.apk > sig.txt 2>&1; head -n 3 sig.txt
+          $BT/aapt2 dump badging out/*.apk > badge.txt 2>&1; grep -E "^package|sdkVersion|targetSdkVersion|native-code" badge.txt
+          echo "models in apk: $(unzip -l out/*.apk | grep -c 'assets/public/assets/.*glb')"
+          echo "::notice title=APK::$(grep -E '^package' badge.txt | cut -c1-160) | $(grep -E 'sdkVersion' badge.txt | tr '\n' ' ') | $(grep -c 'DN:' sig.txt) signer | $(du -h out/*.apk | cut -f1)"
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: out/*.apk
+
+  # ---------------- آيفون (بدون توقيع) ----------------
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Read version
+        id: ver
+        run: echo "v=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Build the game for mobile (www)
+        env: { ELECTRON_SKIP_BINARY_DOWNLOAD: 1 }
+        run: bash mobile/run.sh "web build" bash -c "npm ci && npm run bundle:mobile"
+      - name: Install Capacitor
+        env: { ELECTRON_SKIP_BINARY_DOWNLOAD: 1 }
+        run: bash mobile/run.sh "capacitor install" npm install --save --no-package-lock @capacitor/cli@$CAP_VER @capacitor/core@$CAP_VER @capacitor/ios@$CAP_VER @capacitor/app@$CAP_VER @capacitor/status-bar@$CAP_VER @capacitor/assets@3
+      - run: bash mobile/run.sh "cap add ios" npx cap add ios
+      - run: bash mobile/run.sh "icons" npx capacitor-assets generate --ios --iconBackgroundColor '#160f06' --splashBackgroundColor '#000000'
+      - run: bash mobile/run.sh "patch ios" bash mobile/patch-ios.sh "${{ steps.ver.outputs.v }}"
+      - run: bash mobile/run.sh "cap sync ios" npx cap sync ios
+      - name: Build (no signing)
+        run: |
+          bash mobile/run.sh "xcodebuild" xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build-ios \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+      - name: Package IPA
+        run: |
+          mkdir -p out/Payload
+          cp -R build-ios/Build/Products/Release-iphoneos/App.app out/Payload/
+          ls out/Payload/App.app/public/assets | wc -l
+          cd out && zip -qr "IBRA-TANK-${{ steps.ver.outputs.v }}-ios-unsigned.ipa" Payload && rm -rf Payload && ls -la
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: out/*.ipa
+
+  # ---------------- النشر ----------------
+  release:
+    needs: [windows, android, ios]
+    # ينشر إذا نجحت نسخة الويندوز أو الأندرويد (كل منصة تتحدث بس إذا ملفها موجود بالإصدار)
+    if: always() && (needs.windows.result == 'success' || needs.android.result == 'success') && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read version
+        id: ver
+        run: echo "v=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - run: ls -la dist
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.ver.outputs.v }}
           target_commitish: ${{ github.sha }}
-          files: dist/IBRA-TANK-Setup-*.exe
           name: IBRA TANK v${{ steps.ver.outputs.v }}
           make_latest: true
+          files: |
+            dist/*.exe
+            dist/*.apk
+            dist/*.ipa
           body: |
-            حمّل ملف التنصيب IBRA-TANK-Setup وشغّله.
-            التحديث: نصّب النسخة الجديدة فوق القديمة.
+            🖥 ويندوز: حمّل ملف IBRA-TANK-Setup وشغّله (التحديث: نصّب النسخة الجديدة فوق القديمة).
+            📱 أندرويد: حمّل ملف android.apk وثبّته (التحديثات الجاية تنزل من داخل اللعبة).
+            🍎 آيفون: ملف ios-unsigned.ipa بدون توقيع — يتوقّع ببرنامج التوقيع ثم يتثبت.

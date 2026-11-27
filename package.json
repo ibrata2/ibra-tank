@@ -1,7 +1,7 @@
 {
   "name": "ibra-tank",
   "productName": "IBRA TANK",
-  "version": "1.9.6",
+  "version": "1.10.0",
   "description": "IBRA TANK — درع العراق: لعبة دبابة ثلاثية الأبعاد بمراحل لا تنتهي",
   "author": "Ibrahim Al-Khazraji (IBRAPROGRAM)",
   "license": "MIT",
@@ -11,7 +11,8 @@
   },
   "main": "main.js",
   "scripts": {
-    "bundle": "esbuild src/game.js --bundle --minify --format=iife --outfile=src/game.bundle.js",
+    "bundle": "node scripts/bundle.mjs",
+    "bundle:mobile": "node scripts/bundle.mjs mobile",
     "start": "npm run bundle && electron .",
     "dist": "npm run bundle && electron-builder --win nsis --x64",
     "dist:portable": "npm run bundle && electron-builder --win portable --x64",

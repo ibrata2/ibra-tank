@@ -183,7 +183,7 @@ export function createSpecial(ctx) {
   const onKU = (e) => { if (e.code === 'Space' || e.code === 'Enter') { holding = false; clicked = true; } };
   window.addEventListener('pointerdown', onDown); window.addEventListener('pointerup', onUp);
   window.addEventListener('keydown', onKD); window.addEventListener('keyup', onKU);
-  bubble.addEventListener('click', (e) => { const a = e.target.closest('a'); if (a) { e.preventDefault(); if (window.ibra) window.ibra.open(a.href); else window.open(a.href, '_blank'); } });
+  bubble.addEventListener('click', (e) => { const a = e.target.closest('a'); if (a) { e.preventDefault(); if (window.ibra) window.ibra.open(a.href); else if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) location.href = a.href; else window.open(a.href, '_blank'); } });
   const _hp = new THREE.Vector3();
   function placeBubble() {
     if (!bubble.classList.contains('show')) return;

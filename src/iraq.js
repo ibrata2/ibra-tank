@@ -699,7 +699,7 @@ export function landmark(kind, r) {
 // ============================================================ PROP DISPATCH
 export function buildIraqProp(kind, r, biome, region) {
   switch (kind) {
-    case 'house': { const h = glbHouse(r, { floors: 2, far: false, wk: 0.72, snow: biome && biome.id === 'ice' }); if (h) { h.userData.noBake = true; return h; } return buildProp(kind, r, biome); }
+    case 'house': { const h = glbHouse(r, { floors: 2, far: false, wk: 0.72, snow: biome && biome.id === 'ice' }); if (h) { h.userData.noBake = true; return h; } return iraqHouse(r, { floors: 1 + (r() < 0.3 ? 1 : 0), night: region && region.night, damaged: region && region.damaged && r() < 0.5 }); }
     case 'orange': return orangeTree(r);
     case 'reeds': return reeds(r);
     case 'mudhif': return mudhif(r);
@@ -712,7 +712,6 @@ export function buildIraqProp(kind, r, biome, region) {
     case 'oiltank': return oilTank();
     case 'flagpole': { const f = iraqFlagPole(6 + r() * 2); f.root.userData.flags = [f]; return f.root; }
     case 'building': return iraqHouse(r, { floors: 3 + Math.floor(r() * 4), night: region && region.night, damaged: region && region.damaged && r() < 0.6 });
-    case 'house': return iraqHouse(r, { floors: 1 + (r() < 0.3 ? 1 : 0), night: region && region.night, damaged: region && region.damaged && r() < 0.5 });
     default: return buildProp(kind, r, biome);
   }
 }

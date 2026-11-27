@@ -157,13 +157,13 @@ export function createAdventure(ctx) {
 
   const panel=document.createElement('div');panel.id='adventure-story';panel.innerHTML='<span id="story-chapter"></span><strong id="story-title"></strong><span id="story-controls"></span>';document.body.append(panel);
   const ending=document.createElement('div');ending.id='adventure-ending';ending.className='screen';ending.innerHTML='<div class="dialog"><h2>وصلت للمعسكر — عاش العراق</h2><p>إذا هالتحديث عجبكم، كتبولنه تعليق بالتليكرام</p><div class="actions"><a class="btn primary" href="https://t.me/ibraprogram">اكتب تعليقك بالتليكرام</a><button class="btn" id="story-return">رجوع للقائمة</button></div></div>';document.body.append(ending);
-  const external=e=>{e.preventDefault();if(window.ibra)window.ibra.open(e.currentTarget.href);else window.open(e.currentTarget.href,'_blank','noopener');};
+  const external=e=>{e.preventDefault();const u=e.currentTarget.href;if(window.ibra)window.ibra.open(u);else if(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())location.href=u;else window.open(u,'_blank','noopener');};
   ending.querySelector('a').addEventListener('click',external);ending.querySelector('button').onclick=()=>ctx.exit();
   function objective() {
     const c=chapter(), active=!!c.to;
     document.getElementById('story-chapter').textContent=`عملية الرافدين · فصل ${index+1} / ${CHAPTERS.length}`;
     document.getElementById('story-title').textContent=c.title;
-    document.getElementById('story-controls').textContent=active?'A/D أو ←/→ حركة · W/S أو ↑/↓ تصويب · كليك أيسر أو Space إطلاق'+(c.vehicle==='heli'?' · R/F ارتفاع وانخفاض':''):c.id==='ending'?'وصلت للمعسكر — اكتب رأيك بالتليكرام':'مشهد قصصي — تابع حركة الجندي';
+    document.getElementById('story-controls').textContent=active?(document.body.classList.contains('touch')?'◀ ▶ حركة · ▲ ▼ تصويب · زر «رمي» للإطلاق'+(c.vehicle==='heli'?' · ⤒ ⤓ ارتفاع ونزول':''):'A/D أو ←/→ حركة · W/S أو ↑/↓ تصويب · كليك أيسر أو Space إطلاق'+(c.vehicle==='heli'?' · R/F ارتفاع وانخفاض':'')):c.id==='ending'?'وصلت للمعسكر — اكتب رأيك بالتليكرام':'مشهد قصصي — تابع حركة الجندي';
     document.getElementById('obj').textContent=active?`${c.title} · الأعداء ${Math.min(chapterKills(),c.kills)}/${c.kills}${c.fuel!==undefined&&!fuels[c.fuel].exploded?' · صوب على الوقود وأطلق':''}`:c.title;
     document.getElementById('obj-count').textContent=`${index+1} / ${CHAPTERS.length}`;
     document.getElementById('passengers').textContent=shipActive?'السفينة العراقية تؤمن العبور':allyHeliActive?'إسناد جوي صديق':allyTankActive?'زهراء ونور — دبابة الإسناد':' '; 

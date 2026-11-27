@@ -1,6 +1,7 @@
 // تحميل مجسمات GLB الاحترافية (من مجلد src/assets) وتقسيمها لقطع متحركة
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { LITE } from './mobile.js';
 
 export const GLB = {};
 const pending = new Set();
@@ -26,7 +27,10 @@ export function loadGLB(key, file) {
     .catch((e) => console.warn('GLB', file, e && e.message))
     .finally(() => {
       pending.delete(key);
-      if (GLB[key]) for (const f of [...subs]) f(key);
+      const far = key + '_far'; // نسخة الموبايل: البناية البعيدة هي نفس القريبة (مخففة أصلاً)
+      const alias = LITE && GLB_FILES[far] && GLB[key];
+      if (alias) { GLB[far] = GLB[key]; pending.delete(far); }
+      if (GLB[key]) for (const f of [...subs]) { f(key); if (alias) f(far); }
       if (!pending.size) subs.clear();
     });
 }
@@ -65,7 +69,15 @@ export function splitGLB(scene, classify, rotY = 0) {
 
 // قائمة المجسمات المتوفرة باللعبة — كل ما يوصل مجسم جديد يضاف هنا
 export const GLB_FILES = { tank0: 'tank_t62.glb', tank1: 'tank_abrams.glb', tank2: 'tank_t90.glb', tank3: 'tank_sep.glb', tank4: 'tank_future.glb', heli0: 'heli_blackhawk.glb', heli1: 'heli_attack.glb', heli2: 'heli_stealth.glb', truck: 'car_truck.glb', suv: 'car_suv.glb', apc: 'car_apc.glb', taxi: 'car_taxi.glb', kia: 'car_minibus.glb', b_fishing: 'boat_mashoof.glb', b_rhib: 'boat_rhib.glb', b_patrol: 'boat_patrol.glb', b_warship: 'boat_warship.glb', b_stealth: 'boat_stealth.glb', b_frigate: 'boat_frigate.glb', sold0: 'soldier_iq_1.glb', sold1: 'soldier_iq_2.glb', sold2: 'soldier_iq_3.glb', sold3: 'soldier_iq_4.glb', sold4: 'soldier_iq_5.glb', en_fighter: 'enemy_fighter.glb', en_heavy: 'enemy_heavy.glb', en_sniper: 'enemy_sniper.glb', en_officer: 'enemy_officer.glb', w_rifle: 'weapon_rifle.glb', w_mg: 'weapon_mg.glb', w_rpg: 'weapon_rpg.glb', w_sniper: 'weapon_sniper.glb', drone: 'weapon_drone.glb', t_euc: 'tree_eucalyptus.glb', t_pine: 'tree_pine.glb', n_rock: 'rocks_set.glb', n_shrub: 'plant_shrub.glb', b_shan: 'bld_shanasheel.glb', b_shops: 'bld_shops.glb', b_shan_far: 'bld_shanasheel_far.glb', b_shops_far: 'bld_shops_far.glb', b_house: 'bld_house.glb', b_house_far: 'bld_house_far.glb' };
-export function loadAllGLB() { return Promise.all(Object.entries(GLB_FILES).map(([k, f]) => loadGLB(k, f))); }
+export function loadAllGLB() {
+  const list = Object.entries(GLB_FILES);
+  if (!LITE) return Promise.all(list.map(([k, f]) => loadGLB(k, f)));
+  // الموبايل: 4 ملفات بوقت واحد حتى الذاكرة ما تنضغط على الأجهزة الضعيفة
+  list.forEach(([k]) => pending.add(k));
+  const queue = list.filter(([k]) => !/_far$/.test(k));
+  const worker = async () => { while (queue.length) { const [k, f] = queue.shift(); await loadGLB(k, f); } };
+  return Promise.all([0, 1, 2, 3].map(worker));
+}
 
 // مركبة بعجلات (شاحنة، سيارة…) — يضيف الجسم ويفصل العجلات حتى تدور
 // cfg: { s, rotY, wheels: [[x, y, r], ...], wz: نسبة |z| الدنيا للعجلات, oy: إزاحة عمودية }

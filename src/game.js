@@ -9,6 +9,7 @@ import { World, levelEnv, BIOMES, TIMES } from './world.js';
 import { buildTruck, buildAPC, buildCrate, buildFlag, buildProp, SOLDIER_TYPES, mat } from './models.js';
 import { buildSoldierHD as buildSoldier, buildTankHD as buildTank, buildHeliHD, buildSUV, buildBoatHD, TANK_FAMILIES } from './models_hd.js';
 import { loadAllGLB } from './glb.js';
+import { TOUCH, NATIVE, PLATFORM, LITE, VERSION, openExt, checkWebGL, initTouch, initNative, exitApp, checkUpdate } from './mobile.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { FX } from './fx.js';
 import { Sfx } from './audio.js';
@@ -20,7 +21,9 @@ const lerp = THREE.MathUtils.lerp;
 
 // ============================================================ RENDERER
 const canvas = $('game');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+if (!checkWebGL()) throw new Error('WebGL2 غير مدعوم على هذا الجهاز');
+// الموبايل: شاشاته عالية الكثافة فما يحتاج تنعيم حواف (يوفر شغل على كرت الشاشة)
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !TOUCH || window.devicePixelRatio < 2, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -59,6 +62,7 @@ const WEAPONS = [
 const SAVE_KEY = 'ibra-tank-save-v1';
 const defaultSave = () => ({ level: 1, plv: 1, xp: 0, unlocked: [true, true, false, false, false, false], ammo: WEAPONS.map(w => w.ammo === Infinity ? -1 : 0), kills: 0, volume: 0.7, quality: 'high', mode: 'tank' });
 let S = defaultSave();
+if (TOUCH) S.quality = 'medium'; // الموبايل يبدأ بجودة متوسطة والمنظّم التلقائي يضبط الباقي
 try { const raw = localStorage.getItem(SAVE_KEY); if (raw) S = { ...S, ...JSON.parse(raw) }; } catch (e) { /* ignore */ }
 const save = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { /* ignore */ } };
 if (!MODES.includes(S.mode)) S.mode = 'tank';
@@ -1249,10 +1253,14 @@ window.addEventListener('keydown', (ev) => {
 });
 window.addEventListener('keyup', (ev) => keys.delete(ev.code));
 canvas.addEventListener('mousedown', (ev) => { sfx.init(); if (ev.button === 0) { firing = true; } });
+// الآيفون يفتح الصوت بس بعد لمسة منتهية — فنفعّله بكل لمسة/ضغطة
+if (TOUCH) for (const ev of ['touchend', 'pointerup', 'click']) window.addEventListener(ev, () => sfx.init(), { passive: true });
+// أزرار اللمس للموبايل — تضيف نفس أكواد الكيبورد فكل المودات تشتغل
+const touch = TOUCH ? initTouch({ keys, onPause: () => pause(true), onGesture: () => sfx.init() }) : null;
 window.addEventListener('mouseup', () => { firing = false; });
 canvas.addEventListener('contextmenu',ev=>{if(G.special)ev.preventDefault();});
 canvas.addEventListener('wheel', (ev) => { if (G.state === 'play') P.aim = clamp(P.aim - Math.sign(ev.deltaY) * 0.04, P.vehicle === 'heli' ? -1.25 : -0.25, 1.25); }, { passive: true });
-window.addEventListener('blur', () => { keys.clear(); firing = false; if (G.state === 'play') pause(true); });
+window.addEventListener('blur', () => { keys.clear(); firing = false; if (touch) touch.reset(); if (G.state === 'play') pause(true); });
 const down = (...codes) => codes.some(c => keys.has(c));
 
 // ============================================================ PLAYER UPDATE
@@ -1391,7 +1399,7 @@ function updateCamera(dt, t) {
 
 // ============================================================ UI SCREENS
 function show(id) {
-  for (const s of ['menu', 'pause', 'complete', 'help', 'settings', 'codes']) $(s).classList.toggle('show', s === id);
+  for (const s of ['menu', 'pause', 'complete', 'help', 'settings', 'codes', 'about']) $(s).classList.toggle('show', s === id);
   $('hud').classList.toggle('show', id === null || id === 'pause' || id === 'complete');
   document.body.classList.toggle('playing', id === null);
 }
@@ -1475,7 +1483,7 @@ $('btn-new').onclick = () => {
 };
 $('btn-help').onclick = () => { sfx.click(); show('help'); };
 $('btn-settings').onclick = () => { sfx.click(); show('settings'); };
-$('btn-exit').onclick = () => { if (window.ibra) window.ibra.quit(); else window.close(); };
+$('btn-exit').onclick = () => { if (window.ibra) window.ibra.quit(); else exitApp(); };
 document.querySelectorAll('[data-back]').forEach(b => b.onclick = () => { sfx.click(); show(G.state === 'paused' ? 'pause' : 'menu'); });
 $('btn-resume').onclick = () => pause(false);
 $('btn-menu').onclick = () => { if (G.special) { exitSpecialToMenu(); return; } secretStage = null; G.state = 'menu'; save(); refreshMenu(); show('menu'); };
@@ -1509,18 +1517,42 @@ $('btn-next').onclick = () => { sfx.click(); nextLevel(); };
 $('vol').value = S.volume;
 $('vol').oninput = (e) => { S.volume = parseFloat(e.target.value); sfx.setVolume(S.volume); save(); };
 $('quality').value = S.quality;
+// الموبايل: دقة الرسم تتغير تلقائياً حسب قوة الجهاز (resScale) حتى اللعبة تبقى سلسة على الأجهزة الضعيفة
+const PERF_KEY = 'ibra-tank-perf-v1';
+let resScale = 1, autoNoShadow = false;
+if (TOUCH) try { const pf = JSON.parse(localStorage.getItem(PERF_KEY) || 'null'); if (pf) { resScale = clamp(+pf.s || 1, 0.5, 1); autoNoShadow = !!pf.ns; } } catch (e) { /* ignore */ }
+const savePerf = () => { try { localStorage.setItem(PERF_KEY, JSON.stringify({ s: resScale, ns: autoNoShadow })); } catch (e) { /* ignore */ } };
+const basePR = () => {
+  const hi = S.quality === 'high', mid = S.quality === 'medium';
+  return Math.min(window.devicePixelRatio, TOUCH ? (hi ? 2 : mid ? 1.5 : 1.1) : (hi ? 1.75 : mid ? 1.25 : 1));
+};
 function applyQuality() {
   const hi = S.quality === 'high';
-  renderer.shadowMap.enabled = S.quality !== 'low';
-  world.sun.shadow.mapSize.set(hi ? 2048 : 1024, hi ? 2048 : 1024);
+  renderer.shadowMap.enabled = S.quality !== 'low' && !autoNoShadow;
+  const sm = hi && !TOUCH ? 2048 : 1024;
+  world.sun.shadow.mapSize.set(sm, sm);
   if (world.sun.shadow.map) { world.sun.shadow.map.dispose(); world.sun.shadow.map = null; }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, hi ? 1.75 : S.quality === 'medium' ? 1.25 : 1));
+  renderer.setPixelRatio(basePR() * resScale);
   resize();
   scene.traverse(o => { if (o.material) { const ms = Array.isArray(o.material) ? o.material : [o.material]; ms.forEach(m => m.needsUpdate = true); } });
 }
-$('quality').onchange = (e) => { S.quality = e.target.value; save(); applyQuality(); };
-$('btn-fs').onclick = () => { if (window.ibra) window.ibra.fullscreen(); else if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); };
-document.querySelectorAll('a[data-ext]').forEach(a => a.onclick = (e) => { e.preventDefault(); if (window.ibra) window.ibra.open(a.href); else window.open(a.href, '_blank'); });
+$('quality').onchange = (e) => { S.quality = e.target.value; resScale = 1; autoNoShadow = false; gov.n = 0; gov.t = 0; gov.good = 0; save(); savePerf(); applyQuality(); };
+// منظّم الأداء: يقيس عدد الإطارات كل ثانيتين وقت اللعب؛ إذا الجهاز يتعب ينزّل دقة الرسم، ثم يطفي الظلال، ثم ينزّل الدقة أكثر
+const gov = { n: 0, t: 0, good: 0 };
+function governor(rawDt) {
+  if (!TOUCH || G.state !== 'play') return;
+  if (G.levelTime < 4 || rawDt > 0.3) { if (G.levelTime < 4) { gov.n = 0; gov.t = 0; } return; } // بداية المرحلة والتقطيعات المفردة ما تنحسب
+  gov.n++; gov.t += rawDt;
+  if (gov.t < 2) return;
+  const fps = gov.n / gov.t; gov.n = 0; gov.t = 0;
+  const setScale = (v) => { resScale = v; renderer.setPixelRatio(basePR() * resScale); resize(); savePerf(); };
+  if (fps < 27) {
+    gov.good = 0;
+    if (resScale > 0.75) setScale(Math.max(0.75, resScale * 0.86));
+    else if (renderer.shadowMap.enabled) { autoNoShadow = true; savePerf(); applyQuality(); toast('تم تخفيف الرسوم تلقائياً حتى اللعبة تبقى سلسة', 'blue'); }
+    else if (resScale > 0.5) setScale(Math.max(0.5, resScale * 0.86));
+  } else if (fps > 54 && resScale < 1 && !autoNoShadow && ++gov.good >= 4) { gov.good = 0; setScale(Math.min(1, resScale * 1.1)); }
+}
 
 // ============================================================ LOOP
 function stepPlay(dt) {
@@ -1539,8 +1571,10 @@ function stepPlay(dt) {
 const clock = new THREE.Clock();
 function frame() {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.05, clock.getDelta());
+  const rawDt = clock.getDelta(), dt = Math.min(0.05, rawDt);
   G.t += dt;
+  governor(rawDt);
+  if (touch) touch.setHeli(G.state === 'play' && P.vehicle === 'heli' && P.disabled <= 0);
   if (G.state === 'play') { stepPlay(dt); hud.update(dt); updateFloaters(dt); }
   else if (G.state === 'menu') {
     // idle tank in menu
@@ -1567,6 +1601,19 @@ tank.setTier(stats().tier);
 refreshMenu();
 applyQuality();
 show('menu');
+initNative({
+  onBack() {
+    if (G.state === 'play') { pause(true); return; }
+    if (G.state === 'paused') { if ($('pause').classList.contains('show')) pause(false); else show('pause'); return; }
+    if (G.state === 'complete') return;
+    if (!$('menu').classList.contains('show')) { show('menu'); return; }
+    return 'exit';
+  },
+  onBackground() { keys.clear(); firing = false; if (touch) touch.reset(); if (G.state === 'play') pause(true); if (sfx.ctx && sfx.ctx.state === 'running') sfx.ctx.suspend(); },
+  onForeground() { if (sfx.ctx && sfx.ctx.state === 'suspended') sfx.ctx.resume(); clock.getDelta(); },
+});
+document.querySelectorAll('.ver').forEach(e => { e.textContent = VERSION; });
+checkUpdate();
 frame();
 setTimeout(() => document.body.classList.add('ready'), 100);
 
