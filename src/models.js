@@ -443,6 +443,7 @@ export function buildTruck(scheme = 'desert') {
   return { root, body, wheels, muzzle, w: 6.6, h: 3.0 };
 }
 
+const APC_GLB = { s: 6.2, rotY: Math.PI / 2, wz: 0.55, gun: [0.05, 0.395, 0.022, 0.035], muzzleX: 0.42, wheels: [[-0.3326, 0.0978, 0.099], [-0.1091, 0.0988, 0.099], [0.1239, 0.0948, 0.099], [0.3534, 0.0988, 0.099]] };
 export function buildAPC(scheme = 'enemyGreen') {
   const colors = TANK_SCHEMES[scheme] || TANK_SCHEMES.enemyGreen;
   const paint = mat('apc-' + scheme, () => { const t = camoTexture(colors, 41, 0.7); t.repeat.set(0.3, 0.3); return std(0xffffff, 0.7, 0.3, { map: t }); });
@@ -457,6 +458,11 @@ export function buildAPC(scheme = 'enemyGreen') {
   const muzzle = new THREE.Object3D(); muzzle.position.x = 2.45; gunPivot.add(muzzle);
   for (let i = 0; i < 3; i++) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.25, 0.3), dark); p.position.set(-1.6 + i * 0.6, 1.8, 1.32); body.add(p); }
   shadowAll(root);
+  // المجسم الاحترافي (GLB) — 8 عجلات تدور والمدفع ينرفع وينزل
+  const tint = { enemyGreen: null, enemyGrey: '#9a9e9a', desert: '#d8c49a', winter: '#e6e8e6', urban: '#a0a09c' }[scheme];
+  const tg = new THREE.Group();
+  const v = glbVehicle('apc', APC_GLB, tg, tint, { gunPivot });
+  if (v) { for (const o of [...body.children]) if (o !== gunPivot) body.remove(o); gunPivot.remove(gun); body.add(tg); wheels.length = 0; wheels.push(...v.wheels); muzzle.position.x = (APC_GLB.muzzleX - APC_GLB.gun[0]) * APC_GLB.s; }
   return { root, body, wheels, gunPivot, muzzle, w: 7.2, h: 2.9 };
 }
 

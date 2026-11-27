@@ -1572,4 +1572,4 @@ setTimeout(() => document.body.classList.add('ready'), 100);
 
 // debug hooks for automated tests
 window.__w = world; window.__tank = tank;
-window.__game = { renderer, THREE, scene, camera, world, models: { buildSoldier, buildTank, buildHeliHD, buildSUV, buildBoatHD, buildTruck }, startSpecial, G, P, get S() { return S; }, startGame, buildLevel, WEAPONS, spawnVehicle, spawnSoldier, spawnFriend, winch, muzzleInfo, spawnCrate, collectCrate, resolveSecret, vehicleFor, addXP, keys, stepPlay, fx, ground, nextLevel };
+window.__game = { renderer, THREE, scene, camera, world, models: { buildSoldier, buildTank, buildHeliHD, buildSUV, buildBoatHD, buildTruck, buildAPC }, startSpecial, G, P, get S() { return S; }, startGame, buildLevel, WEAPONS, spawnVehicle, spawnSoldier, spawnFriend, winch, muzzleInfo, spawnCrate, collectCrate, resolveSecret, vehicleFor, addXP, keys, stepPlay, fx, ground, nextLevel };

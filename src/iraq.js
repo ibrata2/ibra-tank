@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { canvasTex, rng } from './textures.js';
 import { buildProp, buildFlag, mat } from './models.js';
+import { glbVehicle } from './glb.js';
 
 const std = (color, rough = 0.85, metal = 0.05, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra });
 const AR_FONT = 'Tahoma, "Segoe UI", "Noto Kufi Arabic", "Noto Sans Arabic", Arial, sans-serif';
@@ -432,13 +433,22 @@ function carBody(color, stripe) {
   for (const x of [-1.35, 1.35]) for (const z of [-0.8, 0.8]) { const t = new THREE.Mesh(wg, tire); t.position.set(x, 0.36, z); g.add(t); }
   return g;
 }
+const TAXI_GLB = { s: 4.4, rotY: Math.PI / 2, wheels: [] }, KIA_GLB = { s: 4.8, rotY: Math.PI / 2, wheels: [] };
+function glbProp(key, cfg, r) { // سيارات واقفة بالشارع — نص منها محروقة
+  const g = new THREE.Group(); const burnt = r && r() < 0.5;
+  const v = glbVehicle(key, cfg, g, null, { burnt }); if (!v) return null;
+  if (burnt) g.rotation.z = (r() - 0.5) * 0.06;
+  return g;
+}
 export function taxi(r) { // تكسي بغداد برتقالي وأبيض
+  const gp = glbProp('taxi', TAXI_GLB, r); if (gp) return gp;
   const g = carBody('#f28c28', '#ffffff');
   const sign = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.25, 0.3), mat('taxisign', () => std('#ffffff', 0.4, 0, { emissive: '#ffffaa', emissiveIntensity: 0.3 }))); sign.position.set(-0.2, 1.97, 0); g.add(sign);
   if (r && r() < 0.5) { g.traverse(o => { if (o.isMesh && o !== sign) o.material = mat('burnt', () => std('#1d1a17', 1, 0.2)); }); g.rotation.z = (r() - 0.5) * 0.1; }
   return shadow(g);
 }
 export function kiaBus(r) { // كيا
+  const gp = glbProp('kia', KIA_GLB, r); if (gp) return gp;
   const g = new THREE.Group();
   const paint = mat('kia', () => std('#f2f0ea', 0.45, 0.3));
   const glass = mat('glass', () => std('#9ad4ff', 0.1, 0.9, { emissive: '#163040', emissiveIntensity: 0.6 }));
