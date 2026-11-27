@@ -168,6 +168,7 @@ function buildWeapon(kind, m) {
 }
 
 const soldierProto = new Map();
+onGLB((k) => { if (/^sold/.test(k)) soldierProto.clear(); }); // أول ما توصل مجسمات الجنود نعيد بناء النماذج
 export function buildSoldierHD(typeKey, uniformKey = 'desert', seed = 1, friendly = false, opts = {}) {
   const key = [typeKey, uniformKey, friendly ? 1 : 0, opts.tier ?? 1, seed % 4, opts.drone === false ? 0 : 1, opts.armor ? 1 : 0].join('|');
   if (!soldierProto.has(key)) soldierProto.set(key, buildSoldierRaw(typeKey, uniformKey, seed % 4 + 1, friendly, opts));
@@ -182,7 +183,97 @@ export function buildSoldierHD(typeKey, uniformKey = 'desert', seed = 1, friendl
   };
   return { root, body: q('body'), legL: L.hip, legR: R2.hip, armL: q('armL'), armR: q('armR'), weapon, muzzle: q('muzzle'), head: q('head'), height: 1.92, type: typeKey, pose };
 }
+// ============ الجنود العراقيين من مجسمات GLB (وضعية A) — نقسمهم لمفاصل حتى يتحركون مثل الجندي المرسوم
+const soldGLBCache = {};
+function geoSubset(g, keepTri) { // g غير مفهرس
+  const pos = g.attributes.position, n = pos.count / 3, out = new THREE.BufferGeometry();
+  const sel = []; for (let t = 0; t < n; t++) { const a = t * 3; if (keepTri((pos.getX(a) + pos.getX(a + 1) + pos.getX(a + 2)) / 3, (pos.getY(a) + pos.getY(a + 1) + pos.getY(a + 2)) / 3, (pos.getZ(a) + pos.getZ(a + 1) + pos.getZ(a + 2)) / 3)) sel.push(t); }
+  for (const k in g.attributes) { const at = g.attributes[k], sz = at.itemSize, arr = new Float32Array(sel.length * 3 * sz); sel.forEach((t, i) => { for (let j = 0; j < 3 * sz; j++) arr[i * 3 * sz + j] = at.array[t * 3 * sz + j]; }); out.setAttribute(k, new THREE.BufferAttribute(arr, sz)); }
+  return out;
+}
+function soldierGLB(key) {
+  if (soldGLBCache[key]) return soldGLBCache[key];
+  const scene = GLB[key]; scene.updateMatrixWorld(true);
+  const bb = new THREE.Box3().setFromObject(scene), H = bb.max.y - bb.min.y;
+  const hipY = 0.44 * H, kneeY = 0.255 * H, neckY = 0.85 * H, armZ = 0.145 * H / 1.14;
+  const sp = splitGLB(scene, (x, y, z) => {
+    if (y > neckY && Math.abs(z) < 0.12) return 'head';
+    if (y > hipY && Math.abs(z) > armZ && y < neckY + 0.02) return z > 0 ? 'armL' : 'armR';
+    if (y < hipY) return z > 0 ? 'legL' : 'legR';
+    return 'torso';
+  }, Math.PI / 2);
+  const P = { material: sp.material, H, torso: sp.parts.torso, head: sp.parts.head, neck: new THREE.Vector3(0, neckY, 0) };
+  for (const side of ['L', 'R']) {
+    const sg = side === 'L' ? 1 : -1;
+    // ساق: فخذ + ساق تحت الركبة
+    const lg = sp.parts['leg' + side].toNonIndexed(); lg.computeBoundingBox();
+    const lz = (lg.boundingBox.min.z + lg.boundingBox.max.z) / 2, lx = (lg.boundingBox.min.x + lg.boundingBox.max.x) / 2;
+    const hip = new THREE.Vector3(lx, hipY + 0.03 * H, lz), knee = new THREE.Vector3(lx, kneeY, lz);
+    P['thigh' + side] = geoSubset(lg, (x, y) => y > kneeY); P['shin' + side] = geoSubset(lg, (x, y) => y <= kneeY);
+    P['hip' + side] = hip; P['knee' + side] = knee;
+    // ذراع: نعدّله ينزل عمودي، ونقسمه عضد + ساعد
+    const ag = sp.parts['arm' + side].toNonIndexed(); ag.computeBoundingBox();
+    const shoulder = new THREE.Vector3(0, ag.boundingBox.max.y - 0.045 * H, sg * armZ * 1.02);
+    const pa = ag.attributes.position; let far = 0, hx = 0, hy = 0, hz = 0;
+    for (let i = 0; i < pa.count; i++) { const d = Math.hypot(pa.getY(i) - shoulder.y, pa.getZ(i) - shoulder.z); if (d > far) { far = d; hy = pa.getY(i); hz = pa.getZ(i); hx = pa.getX(i); } }
+    void hx;
+    const dy = hy - shoulder.y, dz = hz - shoulder.z, ang = Math.atan2(dz, -dy); // زاوية الذراع عن العمود
+    const m4 = new THREE.Matrix4().makeTranslation(-shoulder.x, -shoulder.y, -shoulder.z).premultiply(new THREE.Matrix4().makeRotationX(ang));
+    ag.applyMatrix4(m4); // الآن الكتف عند الأصل والذراع نازل على -y
+    const upper = far * 0.47;
+    P['upper' + side] = geoSubset(ag, (x, y) => y > -upper); P['lower' + side] = geoSubset(ag, (x, y) => y <= -upper);
+    P['shoulder' + side] = shoulder; P['elbowLen' + side] = upper;
+  }
+  return (soldGLBCache[key] = P);
+}
+function buildSoldierGLB(P, S, typeKey, friendly, tier, poses, opts) {
+  const m = P.material;
+  const mk = (g, parent, ox = 0, oy = 0, oz = 0) => { const mm = new THREE.Mesh(g, m); mm.scale.setScalar(S); mm.position.set(ox, oy, oz); mm.castShadow = mm.receiveShadow = true; mm.userData.keep = true; parent.add(mm); return mm; };
+  const root = new THREE.Group(), body = new THREE.Group(); root.add(body); body.name = 'body';
+  mk(P.torso, body);
+  const head = new THREE.Group(); head.name = 'head'; head.position.copy(P.neck).multiplyScalar(S); body.add(head);
+  if (P.head) mk(P.head, head, -P.neck.x * S, -P.neck.y * S, -P.neck.z * S);
+  for (const side of ['L', 'R']) {
+    const hp = P['hip' + side], kn = P['knee' + side];
+    const hip = new THREE.Group(); hip.name = 'hip' + side; hip.position.copy(hp).multiplyScalar(S); body.add(hip);
+    mk(P['thigh' + side], hip, -hp.x * S, -hp.y * S, -hp.z * S);
+    const knee = new THREE.Group(); knee.name = 'knee' + side; knee.position.set(0, (kn.y - hp.y) * S, 0); hip.add(knee);
+    mk(P['shin' + side], knee, -kn.x * S, -kn.y * S, -kn.z * S);
+    const sh = P['shoulder' + side];
+    const shoulder = new THREE.Group(); shoulder.name = 'arm' + side; shoulder.position.copy(sh).multiplyScalar(S); body.add(shoulder);
+    mk(P['upper' + side], shoulder);
+    const elbow = new THREE.Group(); elbow.position.y = -P['elbowLen' + side] * S; shoulder.add(elbow);
+    mk(P['lower' + side], elbow, 0, P['elbowLen' + side] * S, 0);
+    const ps = side === 'R' ? [poses[0], poses[1]] : [poses[2], poses[3]];
+    shoulder.rotation.z = ps[0]; elbow.rotation.z = ps[1];
+  }
+  return { root, body };
+}
 function buildSoldierRaw(typeKey, uniformKey, seed, friendly, opts) {
+  const sk = friendly ? 'sold' + Math.max(0, Math.min(4, opts.tier ?? 1)) : null;
+  if (sk && GLB[sk]) return buildSoldierRawGLB(typeKey, uniformKey, seed, friendly, opts, sk);
+  return buildSoldierRawProc(typeKey, uniformKey, seed, friendly, opts);
+}
+function buildSoldierRawGLB(typeKey, uniformKey, seed, friendly, opts, sk) {
+  const T = SOLDIER_TYPES[typeKey] || SOLDIER_TYPES.rifleman;
+  const tier = Math.max(0, Math.min(4, opts.tier ?? 1));
+  const P = soldierGLB(sk), S = 1.86 / P.H;
+  const W = T.weapon;
+  const poses = { rifle: [0.35, 1.55, 0.75, 1.05], mg: [0.25, 1.5, 0.7, 0.95], rpg: [0.95, 1.6, 1.35, 0.7], sniper: [0.35, 1.55, 0.8, 1.05], pistol: [1.25, 0.25, 1.15, 0.25] }[W] || [0.35, 1.55, 0.75, 1.05];
+  const { root, body } = buildSoldierGLB(P, S, typeKey, friendly, tier, poses, opts);
+  const w = buildWeapon(W, { friendly, tier });
+  const weapon = w.g; weapon.name = 'weapon'; w.muzzle.name = 'muzzle';
+  let warheadNames = null;
+  if (weapon.userData.rpgWarhead) { warheadNames = ['wh0', 'wh1']; weapon.userData.rpgWarhead.forEach((m, i) => { m.name = warheadNames[i]; m.userData.keep = true; }); }
+  if (W === 'rpg') weapon.position.set(0.05, 1.53, -0.16);
+  else if (W === 'pistol') weapon.position.set(0.55, 1.36, -0.02);
+  else weapon.position.set(0.32, 1.29, -0.05);
+  body.add(weapon);
+  if (tier >= 3 && opts.drone !== false) { const dr = buildDrone(0.35); dr.position.set(-0.3, 2.6, 0.4); root.add(dr); root.userData.drone = dr; }
+  shadowAll(root); bake(root);
+  return { root, warheadNames };
+}
+function buildSoldierRawProc(typeKey, uniformKey, seed, friendly, opts) {
   const T = SOLDIER_TYPES[typeKey] || SOLDIER_TYPES.rifleman;
   const r = rng(seed * 977 + 13);
   const tier = friendly ? Math.max(0, Math.min(4, opts.tier ?? 1)) : 0;

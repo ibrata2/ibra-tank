@@ -64,7 +64,7 @@ export function splitGLB(scene, classify, rotY = 0) {
 }
 
 // قائمة المجسمات المتوفرة باللعبة — كل ما يوصل مجسم جديد يضاف هنا
-export const GLB_FILES = { tank0: 'tank_t62.glb', tank1: 'tank_abrams.glb', tank2: 'tank_t90.glb', tank3: 'tank_sep.glb', tank4: 'tank_future.glb', heli0: 'heli_blackhawk.glb', heli1: 'heli_attack.glb', heli2: 'heli_stealth.glb', truck: 'car_truck.glb', suv: 'car_suv.glb', apc: 'car_apc.glb', taxi: 'car_taxi.glb', kia: 'car_minibus.glb', b_fishing: 'boat_mashoof.glb', b_rhib: 'boat_rhib.glb', b_patrol: 'boat_patrol.glb', b_warship: 'boat_warship.glb', b_stealth: 'boat_stealth.glb', b_frigate: 'boat_frigate.glb' };
+export const GLB_FILES = { tank0: 'tank_t62.glb', tank1: 'tank_abrams.glb', tank2: 'tank_t90.glb', tank3: 'tank_sep.glb', tank4: 'tank_future.glb', heli0: 'heli_blackhawk.glb', heli1: 'heli_attack.glb', heli2: 'heli_stealth.glb', truck: 'car_truck.glb', suv: 'car_suv.glb', apc: 'car_apc.glb', taxi: 'car_taxi.glb', kia: 'car_minibus.glb', b_fishing: 'boat_mashoof.glb', b_rhib: 'boat_rhib.glb', b_patrol: 'boat_patrol.glb', b_warship: 'boat_warship.glb', b_stealth: 'boat_stealth.glb', b_frigate: 'boat_frigate.glb', sold0: 'soldier_iq_1.glb', sold1: 'soldier_iq_2.glb', sold2: 'soldier_iq_3.glb', sold3: 'soldier_iq_4.glb', sold4: 'soldier_iq_5.glb' };
 export function loadAllGLB() { return Promise.all(Object.entries(GLB_FILES).map(([k, f]) => loadGLB(k, f))); }
 
 // مركبة بعجلات (شاحنة، سيارة…) — يضيف الجسم ويفصل العجلات حتى تدور
