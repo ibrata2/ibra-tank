@@ -391,7 +391,17 @@ function trackMaterial(base, T, pitch) {
 }
 const glbSplitCache = {};
 // هليكوبتر بلاك هوك: hub = محور المروحة الرئيسية، tail = مروحة الذيل (بوحدات المجسم)
-const HELI_GLB = { s: 11.5, hub: [0.14, 0.325], tail: [-0.64, 0.33, 0.045] };
+const HELI_GLB = {
+  heli0: { s: 11.5, hub: [0.14, 0.325], tail: [-0.64, 0.33, 0.045] }, // بلاك هوك
+  heli1: { s: 11.5, hub: [0.035, 0.316], tail: [-0.66, 0.29, 0.035], rotY: Math.PI / 2, gun: [0.44, 0.06], builtinWings: true }, // هجومية
+};
+// أي مجسم يستخدم: الأعداء = الهجومية، اللاعب = بلاك هوك ثم الهجومية بالعائلات 2 و 4
+function heliKey(scheme, fam) {
+  if (/^enemy/.test(scheme) || scheme === 'green') return GLB.heli1 ? 'heli1' : 'heli0';
+  if (scheme === 'player' && (fam === 2 || fam === 4) && GLB.heli1) return 'heli1';
+  if (scheme === 'player' && fam === 3) return null; // الشبحية — مرسومة لحد ما يوصل مجسمها
+  return 'heli0';
+}
 function glbParts(GC) {
   if (glbSplitCache[GC.key]) return glbSplitCache[GC.key];
   const [px, py] = GC.pivot, [t0, t1, ty] = GC.tur;
@@ -752,16 +762,19 @@ export function buildHeliHD(scheme = 'desert', idx = 0) {
   }
   disc.userData.keep = true;
   // المجسم الاحترافي (GLB) بدل البدن المرسوم — المراوح تبقى بالكود وتدور
-  if (GLB.heli0) {
-    const H = HELI_GLB, sp = glbSplitCache.heli0 || (glbSplitCache.heli0 = splitGLB(GLB.heli0, () => 'body'));
+  const hk = heliKey(scheme, fam);
+  if (hk && GLB[hk]) {
+    const H = HELI_GLB[hk], sp = glbSplitCache[hk] || (glbSplitCache[hk] = splitGLB(GLB[hk], () => 'body', H.rotY || 0));
     if (sp) {
       for (const o of procHull) body.remove(o);
       for (const o of [...body.children]) if (o.isMesh && o.geometry.type === 'PlaneGeometry') body.remove(o); // شارات العلم المسطحة
+      if (H.builtinWings) for (const o of [...ups.children]) if (o.isMesh) ups.remove(o); // الأجنحة والصواريخ موجودة بالمجسم
       let m = sp.material;
       const tint = scheme === 'player' ? null : c[0];
-      if (tint) m = glbTintCache['heli' + tint] || (glbTintCache['heli' + tint] = (() => { const q = m.clone(); q.color = new THREE.Color(1, 1, 1).lerp(new THREE.Color(tint), 0.6).multiplyScalar(1.25); return q; })());
+      if (tint) m = glbTintCache[hk + tint] || (glbTintCache[hk + tint] = (() => { const q = m.clone(); q.color = new THREE.Color(1, 1, 1).lerp(new THREE.Color(tint), /^enemy/.test(scheme) ? 0.9 : 0.6).multiplyScalar(/^enemy/.test(scheme) ? 1.05 : 1.25); return q; })());
       const mm = new THREE.Mesh(sp.parts.body, m); mm.scale.setScalar(H.s); mm.position.set(rotor.position.x - H.hub[0] * H.s, rotor.position.y - H.hub[1] * H.s, 0); mm.userData.keep = true; body.add(mm);
       tailRotor.position.set(mm.position.x + H.tail[0] * H.s, mm.position.y + H.tail[1] * H.s, H.tail[2] * H.s);
+      if (H.gun) muzzle.position.set(mm.position.x + H.gun[0] * H.s, mm.position.y + H.gun[1] * H.s, 0);
     }
   }
   shadowAll(root); disc.castShadow = false;
