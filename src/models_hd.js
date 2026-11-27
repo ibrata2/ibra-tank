@@ -394,12 +394,13 @@ const glbSplitCache = {};
 const HELI_GLB = {
   heli0: { s: 11.5, hub: [0.14, 0.325], tail: [-0.64, 0.33, 0.045] }, // بلاك هوك
   heli1: { s: 11.5, hub: [0.035, 0.316], tail: [-0.66, 0.29, 0.035], rotY: Math.PI / 2, gun: [0.44, 0.06], builtinWings: true }, // هجومية
+  heli2: { s: 11.5, hub: [0.07, 0.33], fan: [-0.5233, 0.2013, 0.043, 0.03] }, // شبحية بمروحة ذيل داخل فتحة (تدور)
 };
 // أي مجسم يستخدم: الأعداء = الهجومية، اللاعب = بلاك هوك ثم الهجومية بالعائلات 2 و 4
 function heliKey(scheme, fam) {
   if (/^enemy/.test(scheme) || scheme === 'green') return GLB.heli1 ? 'heli1' : 'heli0';
   if (scheme === 'player' && (fam === 2 || fam === 4) && GLB.heli1) return 'heli1';
-  if (scheme === 'player' && fam === 3) return null; // الشبحية — مرسومة لحد ما يوصل مجسمها
+  if (scheme === 'player' && fam === 3) return GLB.heli2 ? 'heli2' : null; // الشبحية
   return 'heli0';
 }
 function glbParts(GC) {
@@ -764,7 +765,7 @@ export function buildHeliHD(scheme = 'desert', idx = 0) {
   // المجسم الاحترافي (GLB) بدل البدن المرسوم — المراوح تبقى بالكود وتدور
   const hk = heliKey(scheme, fam);
   if (hk && GLB[hk]) {
-    const H = HELI_GLB[hk], sp = glbSplitCache[hk] || (glbSplitCache[hk] = splitGLB(GLB[hk], () => 'body', H.rotY || 0));
+    const H = HELI_GLB[hk], sp = glbSplitCache[hk] || (glbSplitCache[hk] = splitGLB(GLB[hk], (x, y, z) => (H.fan && Math.hypot(x - H.fan[0], y - H.fan[1]) < H.fan[2] && Math.abs(z) < H.fan[3]) ? 'fan' : 'body', H.rotY || 0));
     if (sp) {
       for (const o of procHull) body.remove(o);
       for (const o of [...body.children]) if (o.isMesh && o.geometry.type === 'PlaneGeometry') body.remove(o); // شارات العلم المسطحة
@@ -773,7 +774,11 @@ export function buildHeliHD(scheme = 'desert', idx = 0) {
       const tint = scheme === 'player' ? null : c[0];
       if (tint) m = glbTintCache[hk + tint] || (glbTintCache[hk + tint] = (() => { const q = m.clone(); q.color = new THREE.Color(1, 1, 1).lerp(new THREE.Color(tint), /^enemy/.test(scheme) ? 0.9 : 0.6).multiplyScalar(/^enemy/.test(scheme) ? 1.05 : 1.25); return q; })());
       const mm = new THREE.Mesh(sp.parts.body, m); mm.scale.setScalar(H.s); mm.position.set(rotor.position.x - H.hub[0] * H.s, rotor.position.y - H.hub[1] * H.s, 0); mm.userData.keep = true; body.add(mm);
-      tailRotor.position.set(mm.position.x + H.tail[0] * H.s, mm.position.y + H.tail[1] * H.s, H.tail[2] * H.s);
+      if (H.fan && sp.parts.fan) { // مروحة الذيل من المجسم نفسه تدور
+        for (const o of [...tailRotor.children]) tailRotor.remove(o);
+        tailRotor.position.set(mm.position.x + H.fan[0] * H.s, mm.position.y + H.fan[1] * H.s, 0);
+        const fm = new THREE.Mesh(sp.parts.fan, m); fm.scale.setScalar(H.s); fm.position.set(-H.fan[0] * H.s, -H.fan[1] * H.s, 0); fm.userData.keep = true; tailRotor.add(fm);
+      } else if (H.tail) tailRotor.position.set(mm.position.x + H.tail[0] * H.s, mm.position.y + H.tail[1] * H.s, H.tail[2] * H.s);
       if (H.gun) muzzle.position.set(mm.position.x + H.gun[0] * H.s, mm.position.y + H.gun[1] * H.s, 0);
     }
   }
