@@ -64,7 +64,7 @@ export function splitGLB(scene, classify, rotY = 0) {
 }
 
 // قائمة المجسمات المتوفرة باللعبة — كل ما يوصل مجسم جديد يضاف هنا
-export const GLB_FILES = { tank0: 'tank_t62.glb', tank1: 'tank_abrams.glb', tank2: 'tank_t90.glb', tank3: 'tank_sep.glb', tank4: 'tank_future.glb', heli0: 'heli_blackhawk.glb', heli1: 'heli_attack.glb', heli2: 'heli_stealth.glb', truck: 'car_truck.glb' };
+export const GLB_FILES = { tank0: 'tank_t62.glb', tank1: 'tank_abrams.glb', tank2: 'tank_t90.glb', tank3: 'tank_sep.glb', tank4: 'tank_future.glb', heli0: 'heli_blackhawk.glb', heli1: 'heli_attack.glb', heli2: 'heli_stealth.glb', truck: 'car_truck.glb', suv: 'car_suv.glb' };
 export function loadAllGLB() { return Promise.all(Object.entries(GLB_FILES).map(([k, f]) => loadGLB(k, f))); }
 
 // مركبة بعجلات (شاحنة، سيارة…) — يضيف الجسم ويفصل العجلات حتى تدور

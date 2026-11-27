@@ -4,7 +4,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { canvasTex, rng, treadTexture, wheelTexture, iraqFlagTexture } from './textures.js';
 import { mat, SOLDIER_TYPES, UNIFORMS } from './models.js';
-import { GLB, splitGLB, onGLB, glbPending } from './glb.js';
+import { GLB, splitGLB, onGLB, glbPending, glbVehicle } from './glb.js';
 
 const std = (color, rough = 0.75, metal = 0.25, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra });
 const gcache = new Map();
@@ -788,6 +788,7 @@ export function buildHeliHD(scheme = 'desert', idx = 0) {
 }
 
 // ============================================================ MILITARY SUV (Bronco style)
+const SUV_GLB = { s: 4.5, rotY: Math.PI / 2, wz: 0.55, wheels: [[-0.3092, 0.1253, 0.126], [0.3408, 0.1233, 0.126]] };
 export function buildSUV(scheme = 'green', variant = 0) {
   const colors = { green: ['#465036', ['#3a4330', '#55603f']], desert: ['#a48f68', ['#8a7553', '#bfad86']], enemyGreen: ['#3d4232', ['#2d3125', '#4b5240']], urban: ['#55585a', ['#3e4143', '#6a6d6f']], enemyGrey: ['#4a4d50', null], winter: ['#bfc3c2', ['#9aa09f', '#d8dbda']] };
   const c = colors[scheme] || colors.green;
@@ -820,6 +821,11 @@ export function buildSUV(scheme = 'green', variant = 0) {
   }
   // spare on back
   const sp = M(tg, rubber, -2.55, 1.35, 0, body); sp.rotation.y = Math.PI / 2;
+  // المجسم الاحترافي (GLB) بدل الجسم المرسوم — العجلات الأربع تدور
+  const procBase = [...body.children];
+  const tint = { green: null, desert: '#c9b48c', enemyGreen: '#59614a', urban: '#7a7c7e', enemyGrey: '#6a6d70', winter: '#e2e4e2' }[scheme];
+  const v = glbVehicle('suv', SUV_GLB, body, tint);
+  if (v) { for (const o of procBase) body.remove(o); wheels.length = 0; wheels.push(...v.wheels); }
   // variants: roof rack, antennas, RWS gun, ambulance
   let gunPivot = null, muzzle = new THREE.Object3D(); muzzle.position.set(2.4, 1.3, 0); body.add(muzzle);
   if (variant === 1 || variant >= 3) { const rack = M(RB(2.1, 0.08, 1.7, 0.02), dark, -1.0, 2.38, 0, body); void rack; for (let i = 0; i < 3; i++) M(RB(0.5, 0.3, 0.6, 0.06), mat('bags', () => std('#5a5a40', 0.95, 0)), -1.7 + i * 0.7, 2.55, (i % 2 - 0.5) * 0.5, body); }
