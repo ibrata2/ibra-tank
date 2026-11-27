@@ -287,7 +287,7 @@ function buildSoldierRawGLB(typeKey, uniformKey, seed, friendly, opts, sk) {
   const w = buildWeapon(W, { friendly, tier });
   const weapon = w.g; weapon.name = 'weapon'; w.muzzle.name = 'muzzle';
   let warheadNames = null;
-  if (weapon.userData.rpgWarhead) { warheadNames = ['wh0', 'wh1']; weapon.userData.rpgWarhead.forEach((m, i) => { m.name = warheadNames[i]; m.userData.keep = true; }); }
+  if (weapon.userData.rpgWarhead) { warheadNames = weapon.userData.rpgWarhead.map((_, i) => 'wh' + i); weapon.userData.rpgWarhead.forEach((m, i) => { m.name = warheadNames[i]; m.userData.keep = true; }); }
   if (W === 'rpg') weapon.position.set(0.05, 1.53, -0.16);
   else if (W === 'pistol') weapon.position.set(0.55, 1.36, -0.02);
   else weapon.position.set(0.32, 1.29, -0.05);
@@ -404,7 +404,7 @@ function buildSoldierRawProc(typeKey, uniformKey, seed, friendly, opts) {
   const w = buildWeapon(W, { friendly, tier });
   const weapon = w.g; weapon.name = 'weapon'; w.muzzle.name = 'muzzle';
   let warheadNames = null;
-  if (weapon.userData.rpgWarhead) { warheadNames = ['wh0', 'wh1']; weapon.userData.rpgWarhead.forEach((m, i) => { m.name = warheadNames[i]; m.userData.keep = true; }); }
+  if (weapon.userData.rpgWarhead) { warheadNames = weapon.userData.rpgWarhead.map((_, i) => 'wh' + i); weapon.userData.rpgWarhead.forEach((m, i) => { m.name = warheadNames[i]; m.userData.keep = true; }); }
   if (W === 'rpg') weapon.position.set(0.05, 1.53, -0.16);
   else if (W === 'pistol') weapon.position.set(0.55, 1.36, -0.02);
   else weapon.position.set(0.32, 1.29, -0.05);
