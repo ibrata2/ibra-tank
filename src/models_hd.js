@@ -113,7 +113,30 @@ const FRIEND_TIERS = [
 ];
 const SKINS = ['#c99a74', '#a8764f', '#8d5a3b', '#d9b08c', '#b98962'];
 
+// أسلحة GLB: السبطانة على محور x وفوهتها بنفس مكان فوهة السلاح المرسوم
+const WEAPON_GLB = { rifle: { len: 1.07, mx: 0.72 }, mg: { len: 1.14, mx: 0.78 }, rpg: { len: 1.35, mx: 0.9, wh: 0.36 }, sniper: { len: 1.25, mx: 0.84 } };
+const weapGLBCache = {};
 function buildWeapon(kind, m) {
+  const C = WEAPON_GLB[kind], key = 'w_' + kind;
+  if (!C || !GLB[key]) return buildWeaponProc(kind, m);
+  let P = weapGLBCache[kind];
+  if (!P) {
+    const sc = GLB[key]; sc.updateMatrixWorld(true);
+    const bb = new THREE.Box3().setFromObject(sc);
+    const sp = splitGLB(sc, (x) => (C.wh && x > C.wh) ? 'wh' : 'body');
+    // ارتفاع السبطانة عند الفوهة
+    let ys = 0, n = 0; sc.traverse((o) => { if (o.isMesh) { const pa = o.geometry.attributes.position, v = new THREE.Vector3(); for (let i = 0; i < pa.count; i++) { v.fromBufferAttribute(pa, i).applyMatrix4(o.matrixWorld); if (v.x > bb.max.x - 0.04) { ys += v.y; n++; } } } });
+    const S = C.len / (bb.max.x - bb.min.x);
+    P = weapGLBCache[kind] = { sp, S, ox: C.mx - bb.max.x * S, oy: -(n ? ys / n : (bb.min.y + bb.max.y) / 2) * S };
+  }
+  const g = new THREE.Group();
+  const mk = (geom) => { const mm = new THREE.Mesh(geom, P.sp.material); mm.scale.setScalar(P.S); mm.position.set(P.ox, P.oy, 0); mm.castShadow = true; mm.userData.keep = true; g.add(mm); return mm; };
+  mk(P.sp.parts.body);
+  if (P.sp.parts.wh) g.userData.rpgWarhead = [mk(P.sp.parts.wh)];
+  const muzzle = new THREE.Object3D(); muzzle.position.set(C.mx, 0, 0); g.add(muzzle);
+  return { g, muzzle };
+}
+function buildWeaponProc(kind, m) {
   const g = new THREE.Group();
   const gun = mat('gunmetal2', () => std('#2b2c2a', 0.42, 0.75));
   const poly = mat('polymer', () => std('#1f201d', 0.8, 0.1));
@@ -397,7 +420,25 @@ function buildSoldierRawProc(typeKey, uniformKey, seed, friendly, opts) {
 }
 
 // small quadcopter drone
+let droneGLBP = null;
+function buildDroneGLB(s) {
+  if (!droneGLBP) {
+    const R = [[0.377, 0.288], [-0.38, 0.285], [0.379, -0.304], [-0.373, -0.3]];
+    const pm = null; void pm;
+    droneGLBP = { R, sp: splitGLB(GLB.drone, (x, y, z) => { if (y > 0.232) for (let i = 0; i < 4; i++) if (Math.hypot(x - R[i][0], z - R[i][1]) < 0.215) return 'p' + i; return 'body'; }) };
+  }
+  const D = droneGLBP, S = 0.95, g = new THREE.Group();
+  if (!D.propMat) { D.propMat = D.sp.material.clone(); D.propMat.onBeforeRender = function (r, sc, cam, geo, obj) { const p = obj.parent; if (p) p.rotation.y = performance.now() * 0.038 * (p.userData.dir || 1); }; } // المراوح تدور حتى بالنسخ
+  const mk = (geom, parent) => { const mm = new THREE.Mesh(geom, D.sp.material); mm.scale.setScalar(S); mm.castShadow = true; mm.userData.keep = true; parent.add(mm); return mm; };
+  const body = mk(D.sp.parts.body, g); body.position.y = -0.15;
+  const props = D.R.map((r, i) => { const pv = new THREE.Group(); pv.position.set(r[0] * S, -0.15, r[1] * S); g.add(pv); pv.userData.dir = i % 2 ? -1 : 1; if (D.sp.parts['p' + i]) { const mm = new THREE.Mesh(D.sp.parts['p' + i], D.propMat); mm.scale.setScalar(S); mm.userData.keep = true; pv.add(mm); mm.position.set(-r[0] * S, 0, -r[1] * S); } return pv; });
+  const off = Math.random() * 10;
+  g.userData.update = (t) => { g.position.y += Math.sin(t * 2 + off) * 0.004; g.rotation.y = Math.sin(t * 0.5 + off) * 0.3; void props; };
+  g.scale.setScalar(s);
+  return g;
+}
 export function buildDrone(s = 1) {
+  if (GLB.drone) return buildDroneGLB(s);
   const g = new THREE.Group();
   const dm = mat('droneM', () => std('#2c2f31', 0.5, 0.5));
   M(RB(0.5, 0.12, 0.3, 0.04), dm, 0, 0, 0, g);
