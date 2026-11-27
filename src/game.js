@@ -1036,7 +1036,7 @@ function updateBoatEnemy(e, dt) {
   e.y = world.waterY - 0.55 + Math.sin(G.t * 2 + e.x) * 0.08;
   e.m.root.position.set(e.x, e.y, e.z);
   e.m.body.rotation.y = want > 0 ? 0 : Math.PI;
-  e.m.root.rotation.z = Math.sin(G.t * 1.4 + e.x) * 0.03;
+  e.m.root.rotation.z = Math.sin(G.t * 1.4 + e.x) * 0.03; e.m.root.rotation.x = Math.sin(G.t * 1.1 + e.x * 0.7) * 0.04;
   if (e.m.root.userData.radar) e.m.root.userData.radar.rotation.y += dt * 3;
   if (Math.abs(e.vx) > 1 && Math.random() < dt * 20) fx.dustPuff(e.x - want * e.w / 2, world.waterY + 0.1, '#e9f4f6', e.kind === 'ship' ? 1.8 : 1, -e.vx * 0.4);
   e.m.root.updateMatrixWorld(true);
@@ -1285,7 +1285,7 @@ function updatePlayer(dt) {
   } else if (P.vehicle === 'boat' && vessel) {
     P.y = world.waterY - 0.55 + Math.sin(G.t * 2) * 0.08;
     vessel.root.position.set(P.x, P.y, 0); vessel.body.rotation.y = P.facing > 0 ? 0 : Math.PI;
-    vessel.root.rotation.z = Math.sin(G.t * 1.4) * 0.025;
+    vessel.root.rotation.z = Math.sin(G.t * 1.4) * 0.025; vessel.root.rotation.x = Math.sin(G.t * 1.1 + 0.7) * 0.035; // تمايل مع الموج
     vessel.gunPivot.rotation.z = P.aim;
     if (vessel.root.userData.radar) vessel.root.userData.radar.rotation.y += dt * 3;
     if (Math.abs(P.vx) > 1 && Math.random() < dt * 16) fx.dustPuff(P.x - P.facing * vessel.w / 2, world.waterY, '#daefff', 1, -P.vx * 0.3);

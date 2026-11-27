@@ -881,6 +881,15 @@ function vHull(len, beam, depth, opts = {}) {
   return g;
 }
 const BOAT_FAMILIES = ['patrol', 'gunboat', 'stealth', 'catamaran', 'frigate'];
+// مجسمات القوارب: gun = [x, y, نصف ارتفاع, نصف عرض] للسبطانة اللي تنفصل وتتحرك
+const BOAT_GLB = {
+  fishing: { key: 'b_fishing', s: 6, rotY: Math.PI / 2, wheels: [], gunAt: [0.6, 0.95] },
+  rhib: { key: 'b_rhib', s: 5.7, wheels: [], gun: [0.40, 0.31, 0.03, 0.05], muzzleX: 0.595 },
+  patrol: { key: 'b_patrol', s: 8.3, wheels: [], gun: [0.40, 0.255, 0.016, 0.03], muzzleX: 0.515 },
+  gunboat: { key: 'b_warship', s: 7.8, rotY: Math.PI / 2, wheels: [], gun: [0.47, 0.227, 0.016, 0.03], muzzleX: 0.57 },
+  frigate: { key: 'b_frigate', s: 12.9, wheels: [], gun: [0.41, 0.16, 0.012, 0.025], muzzleX: 0.49 },
+  stealth: { key: 'b_stealth', s: 8.5, rotY: Math.PI / 2, wheels: [], gun: [0.47, 0.21, 0.016, 0.03], muzzleX: 0.562 },
+};
 export function buildBoatHD(kind = 'patrol', opts = {}) {
   const enemy = !!opts.enemy;
   const base = opts.color || (enemy ? '#4b5257' : '#8f8a74');
@@ -944,11 +953,26 @@ export function buildBoatHD(kind = 'patrol', opts = {}) {
     M(RB(9, 0.14, 0.08, 0.02), white, -0.3, 1.3, 1.52, body); M(RB(9, 0.14, 0.08, 0.02), white, -0.3, 1.3, -1.52, body);
     muzzle = addGun(2.7, 1.95, false); Hh = 3;
   }
+  // المجسم الاحترافي (GLB) — المدفع ينفصل ويتحرك
+  const BG = BOAT_GLB[kind];
+  let glbBoat = false;
+  if (BG && GLB[BG.key]) {
+    const keep = BG.gun ? [gunPivot] : [gunPivot];
+    const procBoat = [...body.children].filter(o => !keep.includes(o));
+    const tint = enemy ? '#7d858b' : null;
+    const v = glbVehicle(BG.key, BG, body, tint, BG.gun ? { gunPivot } : {});
+    if (v) {
+      for (const o of procBoat) body.remove(o);
+      if (BG.gun) { for (const o of [...gunPivot.children]) if (o.isMesh) gunPivot.remove(o); muzzle.position.set((BG.muzzleX - BG.gun[0]) * BG.s + 0.1, 0, 0); }
+      else if (BG.gunAt) gunPivot.position.set(BG.gunAt[0], BG.gunAt[1], 0);
+      glbBoat = true; if (root.userData.radar) root.userData.radar = new THREE.Object3D();
+    }
+  }
   // Iraqi flag + decals (player)
   let flag = null;
   if (!enemy) {
     const fm = mat('iqflagdecalB', () => new THREE.MeshStandardMaterial({ map: iraqFlagTexture(), roughness: 0.75, polygonOffset: true, polygonOffsetFactor: -2 }));
-    for (const z of [1, -1]) { const d = M(geo('bflag', () => new THREE.PlaneGeometry(0.9, 0.6)), fm, -L * 0.18, 1.05, z * (kind === 'catamaran' ? 1.56 : 1.45), body); if (z < 0) d.rotation.y = Math.PI; }
+    if (!glbBoat) for (const z of [1, -1]) { const d = M(geo('bflag', () => new THREE.PlaneGeometry(0.9, 0.6)), fm, -L * 0.18, 1.05, z * (kind === 'catamaran' ? 1.56 : 1.45), body); if (z < 0) d.rotation.y = Math.PI; }
     flag = opts.flagPole ? opts.flagPole() : null;
     if (flag) { flag.root.position.set(-L / 2 + 0.6, Hh * 0.5, 0); flag.root.scale.setScalar(0.7); body.add(flag.root); }
   }
