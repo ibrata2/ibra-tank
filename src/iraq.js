@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { canvasTex, rng } from './textures.js';
 import { buildProp, buildFlag, mat } from './models.js';
 import { glbVehicle, GLB, splitGLB } from './glb.js';
+import { windMat } from './trees.js';
 
 const std = (color, rough = 0.85, metal = 0.05, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra });
 const AR_FONT = 'Tahoma, "Segoe UI", "Noto Kufi Arabic", "Noto Sans Arabic", Arial, sans-serif';
@@ -279,6 +280,7 @@ const hadbaTex = () => cached('hadba', () => canvasTex(256, 512, (g, w, h) => {
 // ---------- بيوت وعمارات من مجسمات GLB (الإحداثيات بوحدات المجسم)
 // signs = أماكن لوحات المحلات الفارغة بالمجسم — نحط عليها الأسماء العراقية بالكود
 const HOUSE_GLB = {
+  house: { key: 'b_house', w: [10, 12], roof: 0.5 },
   shan: { key: 'b_shan', w: [9.5, 11.5], roof: 0.56 },
   shops: { key: 'b_shops', w: [11.5, 13.5], roof: 0.72, signs: [-0.148, 0.0375, 0.223], signY: 0.155, signW: 0.176, signH: 0.04, signZ: 0.269 },
 };
@@ -290,17 +292,19 @@ function glbHouse(r, o) {
   let kind = null;
   if (o.shanasheel && floors >= 2 && GLB.b_shan) kind = 'shan';
   else if (GLB.b_shops && ((o.shop && floors >= 2 && r() < 0.75) || (!o.shop && floors >= 3 && r() < 0.6))) kind = 'shops';
+  if (!kind && GLB.b_house && (floors <= 2 || r() < 0.4)) kind = 'house';
   if (!kind) return null;
   const C = HOUSE_GLB[kind];
   const gkey = o.far && GLB[C.key + '_far'] ? C.key + '_far' : C.key; // الصف الورا البعيد ياخذ نسخة أخف
   let P = houseParts[gkey];
   if (!P) { const sp = splitGLB(GLB[gkey], () => 'all'); if (!sp) return null; sp.parts.all.computeBoundingBox(); P = houseParts[gkey] = { geom: sp.parts.all, material: sp.material, bb: sp.parts.all.boundingBox }; }
-  const bb = P.bb, gw = bb.max.x - bb.min.x, S = (C.w[0] + r() * (C.w[1] - C.w[0])) / gw, cx = (bb.min.x + bb.max.x) / 2, cz = (bb.min.z + bb.max.z) / 2;
+  const bb = P.bb, gw = bb.max.x - bb.min.x, S = (C.w[0] + r() * (C.w[1] - C.w[0])) * (o.wk || 1) / gw, cx = (bb.min.x + bb.max.x) / 2, cz = (bb.min.z + bb.max.z) / 2;
   const tint = TINTS[Math.floor(r() * TINTS.length)];
+  if (o.snow) { const sm = windMat(P.material, 'house|snow|' + gkey, { snow: true }); const g2 = new THREE.Group(); const me = new THREE.Mesh(P.geom, sm); me.scale.setScalar(S); me.position.set(-cx * S, -bb.min.y * S, -cz * S); me.userData.keep = true; g2.add(me); g2.userData.w = gw * S; g2.userData.d = (bb.max.z - bb.min.z) * S; g2.userData.h = C.roof * S; g2.userData.noBake = true; return shadow(g2); }
   const m = tint ? (houseTint[gkey + tint] || (houseTint[gkey + tint] = (() => { const q = P.material.clone(); q.color = new THREE.Color(tint); return q; })())) : P.material;
   const g = new THREE.Group();
   const mesh = new THREE.Mesh(P.geom, m); mesh.scale.setScalar(S); mesh.position.set(-cx * S, -bb.min.y * S, -cz * S); mesh.userData.keep = true; g.add(mesh);
-  if (kind === 'shan' && r() < 0.5) { mesh.scale.x = -S; mesh.position.x = cx * S; } // نسخة معكوسة للتنويع
+  if (kind !== 'shops' && r() < 0.5) { mesh.scale.x = -S; mesh.position.x = cx * S; } // نسخة معكوسة للتنويع
   if (C.signs) { // لوحات المحلات
     const names = [o.shop || pick(r, SHOPS), pick(r, SHOPS), pick(r, SHOPS)];
     C.signs.forEach((sx, i) => {
@@ -695,6 +699,7 @@ export function landmark(kind, r) {
 // ============================================================ PROP DISPATCH
 export function buildIraqProp(kind, r, biome, region) {
   switch (kind) {
+    case 'house': { const h = glbHouse(r, { floors: 2, far: false, wk: 0.72, snow: biome && biome.id === 'ice' }); if (h) { h.userData.noBake = true; return h; } return buildProp(kind, r, biome); }
     case 'orange': return orangeTree(r);
     case 'reeds': return reeds(r);
     case 'mudhif': return mudhif(r);
