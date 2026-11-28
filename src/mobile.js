@@ -76,15 +76,13 @@ export function initTouch({ keys, onPause, onGesture }) {
     pad(root.querySelector('#tc-fire'), () => 'Space'),
   ];
   const pz = root.querySelector('#tc-pause');
-  pz.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); });
-  pz.addEventListener('click', (e) => { e.stopPropagation(); onPause(); });
+  // الإيقاف يشتغل من أول لمسة (بدون انتظار click) حتى ما تضيع الضغطة
+  pz.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); onPause(); });
   // منع التكبير والتمرير واللمسة المطولة
   const cv = document.getElementById('game');
   cv.addEventListener('touchstart', (e) => { if (e.cancelable) e.preventDefault(); }, { passive: false });
   root.addEventListener('touchstart', (e) => { if (e.cancelable) e.preventDefault(); }, { passive: false });
   for (const ev of ['gesturestart', 'gesturechange', 'contextmenu']) document.addEventListener(ev, (e) => e.preventDefault());
-  let lastTap = 0;
-  document.addEventListener('touchend', (e) => { const n = Date.now(); if (n - lastTap < 320 && !e.target.closest('input,select,a,button,.slot')) e.preventDefault(); lastTap = n; }, { passive: false });
   return {
     reset() { resets.forEach((f) => f()); },
     // يظهر أزرار الارتفاع بس وقت الهليكوبتر
